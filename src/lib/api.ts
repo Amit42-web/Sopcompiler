@@ -1,9 +1,11 @@
 /**
- * Typed client for the RuleForge AI FastAPI backend.
+ * Typed client for the RuleForge AI API.
  *
- * The base URL is read from `NEXT_PUBLIC_API_URL` (see `.env.example`).
- * When the backend is not running, callers should handle thrown errors and
- * fall back to local sample data — the UI is designed to render either way.
+ * The API now runs inside this Next.js app as Route Handlers under
+ * `src/app/api/*`, so the default base URL is same-origin (empty string).
+ * `NEXT_PUBLIC_API_URL` can still point the client at a remote deployment.
+ * Callers should handle thrown errors and fall back to local sample data —
+ * the UI is designed to render either way.
  */
 
 import type {
@@ -14,8 +16,7 @@ import type {
   ValidationReport,
 } from "@/lib/types";
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export class ApiError extends Error {
   status: number;

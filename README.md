@@ -1,105 +1,95 @@
 # RuleForge AI
 
 Enterprise SaaS that converts **Standard Operating Procedure (SOP) documents**
-into **executable Rule Engine JSON**.
-
-This monorepo contains the full application across all nine sprints:
-
-- **`/` (root)** — Next.js 15 frontend (App Router, Tailwind, shadcn/ui)
-- **`/backend`** — FastAPI service (parsing + AI pipeline + rule generation)
+into **executable Rule Engine JSON** — built as a **single Next.js 15
+application**. The UI and the API (document parsing + AI pipeline + rule
+generation) both live in this one app; there is no separate backend service.
 
 ## Architecture
 
 ```
-┌─────────────────────────┐        HTTP / JSON         ┌──────────────────────────┐
-│  Next.js 15 (frontend)  │  ───────────────────────▶  │   FastAPI (backend)      │
-│  App Router · Tailwind  │                            │   parsing + AI pipeline  │
-│  Landing · Dashboard    │  ◀───────────────────────  │   rule engine · export   │
-└─────────────────────────┘     src/lib/api.ts         └──────────────────────────┘
+Browser ──▶ Next.js App Router (one app)
+              ├─ UI            src/app/(marketing)  +  src/app/(dashboard)
+              ├─ API routes    src/app/api/*/route.ts
+              └─ pipeline      src/server/*.ts   (pure TypeScript, Node runtime)
 ```
+
+The frontend calls same-origin API routes through `src/lib/api.ts`.
 
 ## Sprint map
 
-| Sprint | Scope                                          | Where                                                   |
-| ------ | ---------------------------------------------- | ------------------------------------------------------- |
-| 1      | Next.js 15 foundation, dashboard, nav, landing | `src/app/(marketing)`, `src/app/(dashboard)`            |
-| 2      | Projects, SOP upload UI, file management       | `projects/`, `upload/`, `components/files/`             |
-| 3      | Backend, file upload API, PDF/DOCX/TXT parsing | `backend/app/api/files.py`, `services/parsing.py`       |
-| 4      | AI pipeline, text extraction, section detection| `backend/services/pipeline.py`, `services/sections.py`  |
-| 5      | Scenario extraction, resolution grouping       | `backend/services/scenarios.py`                         |
-| 6      | Metadata extraction, knowledge base            | `backend/services/metadata.py`, `knowledge_base.py`     |
-| 7      | Rule Engine JSON generation                    | `backend/services/rules_engine.py`                      |
-| 8      | Rule Builder UI                                | `src/app/(dashboard)/rules`, `components/rules/`        |
-| 9      | Validation, export, user management            | `backend/services/validation.py`, `export.py`, `team/`  |
+| Sprint | Scope                                          | Where                                                     |
+| ------ | ---------------------------------------------- | --------------------------------------------------------- |
+| 1      | Next.js 15 foundation, dashboard, nav, landing | `src/app/(marketing)`, `src/app/(dashboard)`              |
+| 2      | Projects, SOP upload UI, file management       | `projects/`, `upload/`, `components/files/`               |
+| 3      | Upload API + PDF/DOCX/TXT parsing              | `src/app/api/projects/[id]/files`, `src/server/parsing.ts`|
+| 4      | AI pipeline, text extraction, section detection| `src/server/pipeline.ts`, `src/server/sections.ts`        |
+| 5      | Scenario extraction, resolution grouping       | `src/server/scenarios.ts`                                 |
+| 6      | Metadata extraction, knowledge base            | `src/server/metadata.ts`, `src/server/knowledge-base.ts`  |
+| 7      | Rule Engine JSON generation                    | `src/server/rules-engine.ts`                              |
+| 8      | Rule Builder UI                                | `src/app/(dashboard)/rules`, `components/rules/`          |
+| 9      | Validation, export, user management            | `src/server/validation.ts`, `export.ts`, `api/team/`      |
 
 ## Tech Stack
 
-**Frontend:** Next.js 15 · React 19 · TypeScript · Tailwind CSS 3 · shadcn/ui ·
-lucide-react
-**Backend:** FastAPI · Pydantic v2 · pypdf · python-docx · (optional) Anthropic
+Next.js 15 · React 19 · TypeScript · Tailwind CSS 3 · shadcn/ui · lucide-react ·
+`unpdf` (PDF) · `mammoth` (DOCX) · optional Anthropic enhancer.
 
 ## Getting Started
 
-### Frontend
-
 ```bash
 npm install
-cp .env.example .env.local     # point NEXT_PUBLIC_API_URL at the backend
-npm run dev                    # http://localhost:3000
+cp .env.example .env.local     # optional: add ANTHROPIC_API_KEY to enable the LLM
+npm run dev                    # http://localhost:3000  (API under /api)
 ```
 
-The UI renders with built-in sample data even when the backend is offline.
-
-### Backend
-
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload  # http://localhost:8000  (docs at /docs)
-pytest                         # run the test suite
-```
+`npm run build` is the gate: it type-checks and lints. The UI also renders with
+built-in sample data if the API returns nothing.
 
 ## The AI pipeline
 
-The backend pipeline is a chain of pure functions over parsed text:
+A chain of pure functions over parsed text, one file per stage in `src/server/`:
 
 ```
 parse → metadata → sections → scenarios → resolution groups → knowledge base → rules
 ```
 
 It runs entirely on **deterministic heuristics** (no API key required). Set
-`ANTHROPIC_API_KEY` in `backend/.env` to enable the optional LLM enhancer in
-`backend/app/services/llm.py`, which refines scenario extraction — the pipeline
+`ANTHROPIC_API_KEY` to enable the optional enhancer in `src/server/llm.ts`
+(called with plain `fetch` — no SDK), which refines scenario extraction and
 falls back to heuristics automatically if the key or network is unavailable.
+
+## API
+
+| Method | Path                                   | Purpose                    |
+| ------ | -------------------------------------- | -------------------------- |
+| GET    | `/api/health`                          | Health + feature flags     |
+| GET/POST | `/api/projects`                      | List / create projects     |
+| GET    | `/api/projects/{id}`                   | Get a project              |
+| GET/POST | `/api/projects/{id}/files`           | List / upload + parse SOP  |
+| POST   | `/api/files/{id}/pipeline`             | Run the AI pipeline        |
+| GET    | `/api/files/{id}/pipeline`             | Fetch pipeline result      |
+| POST   | `/api/projects/{id}/rules`             | Generate a rule set        |
+| GET    | `/api/rules/{id}`                      | Get a rule set             |
+| POST   | `/api/rules/{id}/validate`             | Validate a rule set        |
+| GET    | `/api/rules/{id}/export?format=json`   | Export Rule Engine JSON    |
+| GET/POST | `/api/team` · `/api/team/invite`     | List / invite members      |
 
 ## Project Structure
 
 ```
-.
-├── src/
-│   ├── app/
-│   │   ├── (marketing)/          # Public landing page
-│   │   └── (dashboard)/          # App shell: dashboard, projects, upload,
-│   │       │                     #   rules, team, settings
-│   │       └── projects/[id]/    # Project detail + file management
-│   ├── components/
-│   │   ├── layout/               # Sidebar, top bar, mobile nav, shell
-│   │   ├── ui/                   # Reusable shadcn/ui primitives
-│   │   ├── files/                # File manager
-│   │   ├── rules/                # Rule builder
-│   │   └── upload/               # SOP dropzone
-│   └── lib/                      # types, api client, navigation, sample data
-└── backend/
-    └── app/
-        ├── api/                  # Routers: projects, files, pipeline, rules, team
-        ├── models/schemas.py     # Pydantic schemas
-        └── services/             # parsing + pipeline + rule engine + validation
+src/
+├── app/
+│   ├── (marketing)/          # Public landing page
+│   ├── (dashboard)/          # App shell: dashboard, projects, upload, rules, team, settings
+│   └── api/                  # Route Handlers (the API)
+├── components/               # layout, ui (shadcn), files, rules, upload
+├── lib/                      # types, api client, navigation, sample data
+└── server/                   # parsing + pipeline + rule engine + validation + store
 ```
 
 ## Not yet wired (future work)
 
-Authentication (Supabase) and a PostgreSQL persistence layer are scaffolded in
-the UI/Settings and the storage interface but intentionally left as in-memory /
-placeholder implementations.
-```
+Authentication (Supabase) and a database persistence layer are scaffolded in
+the UI/Settings and in `src/server/store.ts` (an in-memory, database-shaped
+store) but intentionally left as placeholders.

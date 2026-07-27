@@ -7,14 +7,15 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 **RuleForge AI** — an enterprise SaaS that converts Standard Operating
 Procedure (SOP) documents into executable **Rule Engine JSON**.
 
-This is a monorepo:
-
-- **`/` (root)** — Next.js 15 frontend (App Router, TypeScript, Tailwind, shadcn/ui)
-- **`/backend`** — FastAPI service (document parsing + AI pipeline + rule generation)
+This is a **single Next.js 15 application** (App Router, TypeScript, Tailwind,
+shadcn/ui). The UI and the API both live here — the API is implemented as
+Route Handlers under `src/app/api/*`, and the document-parsing + AI pipeline
+lives in plain TypeScript under `src/server/*`. There is no separate backend
+service.
 
 ## Commands
 
-### Frontend (run from repo root)
+Run from the repo root:
 
 ```bash
 npm install            # install dependencies
@@ -24,49 +25,51 @@ npm run lint           # ESLint (next/core-web-vitals)
 npm run start          # serve the production build
 ```
 
-There is no separate test runner on the frontend; `npm run build` is the gate —
-it must compile with zero type or lint errors.
-
-### Backend (run from `backend/`)
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload   # API → http://localhost:8000 (docs at /docs)
-pytest                          # run the test suite (must stay green)
-```
+There is no separate test runner; `npm run build` is the gate — it must
+compile with zero type or lint errors.
 
 ## Architecture
 
 ```
-Next.js frontend  ──HTTP/JSON──▶  FastAPI backend
- src/lib/api.ts                    parse → pipeline → rules → validate → export
+Browser ──▶ Next.js App Router
+              ├─ UI            src/app/(marketing) + src/app/(dashboard)
+              ├─ API routes    src/app/api/*/route.ts   (call src/lib/api.ts)
+              └─ pipeline       src/server/*.ts          (pure TS, Node runtime)
 ```
 
-### The AI pipeline (backend)
+The frontend talks to same-origin API routes via `src/lib/api.ts`
+(`NEXT_PUBLIC_API_URL` defaults to empty = same origin).
+
+### The AI pipeline (`src/server/`)
 
 A chain of **pure, independently-testable functions** over parsed text. Each
-stage lives in its own module under `backend/app/services/`:
+stage is its own file:
 
 ```
-parse (PDF/DOCX/TXT)   parsing.py          # Sprint 3
-  → metadata           metadata.py         # Sprint 6
-  → sections           sections.py         # Sprint 4
-  → scenarios          scenarios.py        # Sprint 5
-  → resolution groups  scenarios.py        # Sprint 5
-  → knowledge base     knowledge_base.py   # Sprint 6
-  → rules              rules_engine.py     # Sprint 7
-  → validate / export  validation.py, export.py   # Sprint 9
+parse (PDF/DOCX/TXT)   parsing.ts          # Sprint 3
+  → metadata           metadata.ts         # Sprint 6
+  → sections           sections.ts         # Sprint 4
+  → scenarios          scenarios.ts        # Sprint 5
+  → resolution groups  scenarios.ts        # Sprint 5
+  → knowledge base     knowledge-base.ts   # Sprint 6
+  → rules              rules-engine.ts     # Sprint 7
+  → validate / export  validation.ts, export.ts   # Sprint 9
 ```
 
-`pipeline.py` orchestrates the metadata→sections→scenarios→knowledge-base
-stages; `rules_engine.py` turns scenarios into rules.
+`pipeline.ts` orchestrates metadata→sections→scenarios→knowledge-base;
+`rules-engine.ts` turns scenarios into rules; `store.ts` is the in-memory,
+database-shaped persistence layer (held on `globalThis` to survive HMR).
 
 **Key principle:** the pipeline runs entirely on deterministic heuristics with
-**no API key required**. `services/llm.py` is an *optional* enhancer that
-activates only when `ANTHROPIC_API_KEY` is set, and it degrades back to the
-heuristic result on any error (offline, rate limit, parse failure). Never make
-the pipeline hard-depend on the LLM.
+**no API key required**. `src/server/llm.ts` is an *optional* enhancer that
+activates only when `ANTHROPIC_API_KEY` is set (called via `fetch`, no SDK
+dependency), and it degrades back to the heuristic result on any error
+(offline, rate limit, parse failure). Never make the pipeline hard-depend on
+the LLM.
+
+Parsing uses `unpdf` (PDF) and `mammoth` (DOCX), imported dynamically inside
+`parsing.ts`. Routes that parse or run the pipeline set
+`export const runtime = "nodejs"`.
 
 ## Directory layout
 
@@ -74,36 +77,34 @@ the pipeline hard-depend on the LLM.
 src/
 ├── app/
 │   ├── (marketing)/          # Public landing page (own layout, no app chrome)
-│   └── (dashboard)/          # App shell (sidebar + top bar) wraps these:
-│       ├── dashboard/        #   /dashboard
-│       ├── projects/         #   /projects  and  /projects/[id]
-│       ├── upload/           #   /upload
-│       ├── rules/            #   /rules  (Rule Builder)
-│       ├── team/             #   /team
-│       └── settings/         #   /settings
+│   ├── (dashboard)/          # App shell (sidebar + top bar) wraps these:
+│   │   ├── dashboard/        #   /dashboard
+│   │   ├── projects/         #   /projects  and  /projects/[id]
+│   │   ├── upload/           #   /upload
+│   │   ├── rules/            #   /rules  (Rule Builder)
+│   │   ├── team/             #   /team
+│   │   └── settings/         #   /settings
+│   └── api/                  # Route Handlers (the API):
+│       ├── health/           #   GET  /api/health
+│       ├── projects/         #   GET/POST /api/projects, /[id], /[id]/files, /[id]/rules
+│       ├── files/[id]/pipeline/   # GET/POST run the pipeline
+│       ├── rules/[id]/       #   GET, /validate, /export
+│       └── team/             #   GET /api/team, POST /api/team/invite
 ├── components/
 │   ├── layout/               # sidebar, topbar, mobile-nav, dashboard-shell, logo
 │   ├── ui/                   # shadcn/ui primitives (button, card, table, tabs, …)
 │   ├── files/                # file-manager
 │   ├── rules/                # rule-builder
 │   └── upload/               # sop-dropzone
-└── lib/
-    ├── types.ts              # domain types — MUST mirror backend schemas
-    ├── api.ts                # typed backend client (NEXT_PUBLIC_API_URL)
-    ├── navigation.ts         # single source of truth for nav items
-    └── sample-data.ts        # renders the UI when the backend is offline
-
-backend/app/
-├── main.py                   # FastAPI app + CORS + router wiring
-├── config.py                 # env-based settings
-├── models/schemas.py         # Pydantic schemas — MUST mirror src/lib/types.ts
-├── api/                      # routers: projects, files, pipeline, rules, users, health
-└── services/                 # parsing + pipeline stages + rules + validation + export + storage
+├── lib/
+│   ├── types.ts              # domain types (shared by UI + API)
+│   ├── api.ts                # typed API client (same-origin fetch)
+│   ├── navigation.ts         # single source of truth for nav items
+│   └── sample-data.ts        # renders the UI when the API returns nothing
+└── server/                   # the API's business logic (see pipeline above)
 ```
 
 ## Conventions
-
-### Frontend
 
 - **App Router only.** Server Components by default; add `"use client"` only
   when a component needs state, effects, or browser APIs.
@@ -118,37 +119,26 @@ backend/app/
 - **Icons:** `lucide-react` only.
 - **Navigation** items come from `src/lib/navigation.ts` — update there, not in
   the sidebar/mobile-nav components.
+- **API routes** are thin: validate input, call a `src/server/*` function,
+  return `NextResponse.json`. Keep business logic in `src/server`, not in the
+  route handler.
+- **`src/server` modules are pure** — no I/O beyond `store.ts` and the optional
+  `llm.ts` fetch. Each pipeline stage stays independently testable.
 - Prefer a **system font stack** over `next/font/google` (builds must not depend
   on network font fetches).
-
-### Backend
-
-- **Pydantic v2** schemas in `models/schemas.py` are the contract. When you
-  change a schema, update the matching TypeScript type in `src/lib/types.ts`.
-- Pipeline stages are **pure functions** — no I/O, no globals. Persistence goes
-  through `services/storage.py` (an in-memory, database-shaped store).
-- New endpoints go in `api/` as an `APIRouter`, then are included in `main.py`
-  under the `/api` prefix.
-- Every pipeline stage or rules change needs a test in `backend/tests/`.
-
-## Contract to keep in sync
-
-`src/lib/types.ts` (frontend) and `backend/app/models/schemas.py` (backend)
-describe the **same** entities: `Project`, `SopFile`, `SopSection`, `Scenario`,
-`SopMetadata`, `KnowledgeEntry`, `Rule`/`RuleSet`, `ValidationReport`,
-`TeamMember`. Changing one side means changing the other.
+- TypeScript target is **ES2018+** (named regex capture groups are used in the
+  pipeline).
 
 ## Definition of done
 
-1. Frontend: `npm run build` compiles with no type/lint errors.
-2. Backend: `pytest` is green.
-3. Frontend and backend schemas stay in sync.
-4. The end-to-end flow still works: upload → run pipeline → generate rules →
+1. `npm run build` compiles with no type/lint errors.
+2. The end-to-end flow still works: upload → run pipeline → generate rules →
    validate → export valid Rule Engine JSON.
+3. `src/lib/types.ts` stays the single source of truth shared by UI and API.
 
 ## Intentionally not implemented (future sprints)
 
 - **Supabase authentication** — scaffolded in Settings UI only.
-- **PostgreSQL persistence** — the storage interface is database-shaped but
-  backed by an in-memory store.
+- **Database persistence** — `src/server/store.ts` is database-shaped but backed
+  by an in-memory `Map` on `globalThis`.
 - Do not wire these up unless the task explicitly asks for them.
