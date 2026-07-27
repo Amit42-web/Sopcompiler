@@ -23,11 +23,10 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title="Settings"
-        description="Manage your workspace and account preferences."
+        description="Manage your workspace and integration preferences."
       />
 
       <div className="space-y-6">
-        {/* Workspace */}
         <Card>
           <CardHeader>
             <CardTitle>Workspace</CardTitle>
@@ -54,7 +53,27 @@ export default function SettingsPage() {
           </CardFooter>
         </Card>
 
-        {/* Rule engine output */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Backend Connection</CardTitle>
+            <CardDescription>
+              The FastAPI service that runs parsing and the AI pipeline.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label htmlFor="api-url">API base URL</Label>
+            <Input
+              id="api-url"
+              defaultValue="http://localhost:8000"
+              placeholder="https://api.your-domain.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              Set <code>NEXT_PUBLIC_API_URL</code> to point the app at your
+              deployed backend.
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Rule Engine Output</CardTitle>
@@ -71,27 +90,31 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Integrations (disabled preview) */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Integrations</CardTitle>
-              <Badge variant="secondary">Coming soon</Badge>
+              <Badge variant="secondary">Preview</Badge>
             </div>
             <CardDescription>
-              Authentication, database, and AI services connect here in
-              upcoming sprints.
+              Authentication, database, and AI services connect here.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="divide-y rounded-lg border text-sm">
-              {["Supabase Auth", "PostgreSQL", "AI Extraction"].map((item) => (
+              {[
+                { name: "Supabase Auth", connected: false },
+                { name: "PostgreSQL", connected: false },
+                { name: "Anthropic (AI pipeline)", connected: false },
+              ].map((item) => (
                 <li
-                  key={item}
+                  key={item.name}
                   className="flex items-center justify-between px-4 py-3"
                 >
-                  <span>{item}</span>
-                  <Badge variant="outline">Not connected</Badge>
+                  <span>{item.name}</span>
+                  <Badge variant={item.connected ? "success" : "outline"}>
+                    {item.connected ? "Connected" : "Not connected"}
+                  </Badge>
                 </li>
               ))}
             </ul>

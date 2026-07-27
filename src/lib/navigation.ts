@@ -2,6 +2,8 @@ import {
   LayoutDashboard,
   Upload,
   FolderKanban,
+  Braces,
+  Users,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -21,9 +23,15 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   {
     title: "Dashboard",
-    href: "/",
+    href: "/dashboard",
     icon: LayoutDashboard,
     description: "Overview of your RuleForge workspace",
+  },
+  {
+    title: "Projects",
+    href: "/projects",
+    icon: FolderKanban,
+    description: "Manage your rule-engine projects",
   },
   {
     title: "Upload SOP",
@@ -32,10 +40,16 @@ export const navItems: NavItem[] = [
     description: "Import SOP documents for rule extraction",
   },
   {
-    title: "Projects",
-    href: "/projects",
-    icon: FolderKanban,
-    description: "Manage your rule-engine projects",
+    title: "Rule Builder",
+    href: "/rules",
+    icon: Braces,
+    description: "Review and edit generated rules",
+  },
+  {
+    title: "Team",
+    href: "/team",
+    icon: Users,
+    description: "Manage members and access",
   },
   {
     title: "Settings",

@@ -19,11 +19,20 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+interface SopDropzoneProps {
+  /**
+   * Called when files are confirmed for upload. When provided, the "Process
+   * SOPs" action hands the staged files off to the parent (e.g. FileManager)
+   * and clears the local staging list.
+   */
+  onFilesAdded?: (files: SelectedFile[]) => void;
+}
+
 /**
  * Client-side SOP file picker with drag-and-drop.
- * Sprint 1: UI only — files are staged locally, not uploaded anywhere.
+ * Files are staged locally; wiring to the backend upload API is a drop-in swap.
  */
-export function SopDropzone() {
+export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<SelectedFile[]>([]);
@@ -32,6 +41,13 @@ export function SopDropzone() {
     if (!list) return;
     const next = Array.from(list).map((f) => ({ name: f.name, size: f.size }));
     setFiles((prev) => [...prev, ...next]);
+  }
+
+  function handleProcess() {
+    if (onFilesAdded && files.length > 0) {
+      onFilesAdded(files);
+      setFiles([]);
+    }
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
@@ -118,13 +134,17 @@ export function SopDropzone() {
           </ul>
 
           <div className="flex items-center gap-2 pt-2">
-            <Button disabled>Process SOPs</Button>
+            <Button onClick={handleProcess} disabled={!onFilesAdded}>
+              {onFilesAdded ? "Add to project" : "Process SOPs"}
+            </Button>
             <Button variant="outline" onClick={() => setFiles([])}>
               Clear all
             </Button>
-            <span className="text-xs text-muted-foreground">
-              Processing arrives in a future sprint.
-            </span>
+            {!onFilesAdded && (
+              <span className="text-xs text-muted-foreground">
+                Backend processing connects in Sprint 3.
+              </span>
+            )}
           </div>
         </div>
       )}

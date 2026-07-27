@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
 
 export const metadata: Metadata = {
   title: {
@@ -19,9 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="font-sans antialiased">
-        <DashboardShell>{children}</DashboardShell>
-      </body>
+      <body className="font-sans antialiased">{children}</body>
     </html>
   );
 }

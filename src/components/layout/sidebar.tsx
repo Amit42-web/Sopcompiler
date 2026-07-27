@@ -10,7 +10,7 @@ export function Sidebar() {
   return (
     <aside className="hidden w-64 shrink-0 border-r bg-card md:flex md:flex-col">
       <div className="flex h-16 items-center border-b px-6">
-        <Logo />
+        <Logo href="/dashboard" />
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">

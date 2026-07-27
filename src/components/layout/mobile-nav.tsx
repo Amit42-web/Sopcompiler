@@ -45,7 +45,7 @@ export function MobileNav() {
           {/* Drawer */}
           <div className="absolute inset-y-0 left-0 flex w-72 max-w-[80%] flex-col border-r bg-card shadow-xl">
             <div className="flex h-16 items-center justify-between border-b px-6">
-              <Logo />
+              <Logo href="/dashboard" />
               <Button
                 variant="ghost"
                 size="icon"
