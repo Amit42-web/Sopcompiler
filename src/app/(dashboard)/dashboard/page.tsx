@@ -1,9 +1,10 @@
 import Link from "next/link";
 import {
   Upload,
-  FolderKanban,
+  Braces,
   FileText,
   Cpu,
+  Layers,
   ArrowRight,
   CheckCircle2,
 } from "lucide-react";
@@ -21,7 +22,7 @@ import {
 
 const stats = [
   { label: "SOPs Uploaded", value: "12", icon: FileText },
-  { label: "Active Projects", value: "3", icon: FolderKanban },
+  { label: "Scenarios Extracted", value: "48", icon: Layers },
   { label: "Rules Generated", value: "27", icon: Cpu },
   { label: "Completed Runs", value: "9", icon: CheckCircle2 },
 ];
@@ -34,17 +35,17 @@ const quickActions = [
     icon: Upload,
   },
   {
-    title: "Browse Projects",
-    description: "Review and manage your rule-engine projects.",
-    href: "/projects",
-    icon: FolderKanban,
+    title: "Open Rule Builder",
+    description: "Review, edit, validate, and export your rules.",
+    href: "/rules",
+    icon: Braces,
   },
 ];
 
 const activity = [
-  { title: "Refund Policy Engine", detail: "9 rules generated", time: "5h ago" },
-  { title: "Employee Onboarding", detail: "4 SOPs parsed", time: "2d ago" },
-  { title: "Compliance Checks", detail: "Project created", time: "1w ago" },
+  { title: "Refund Policy SOP", detail: "9 rules generated", time: "5h ago" },
+  { title: "Employee Onboarding SOP", detail: "4 documents parsed", time: "2d ago" },
+  { title: "Compliance Checks SOP", detail: "12 scenarios extracted", time: "1w ago" },
 ];
 
 export default function DashboardPage() {

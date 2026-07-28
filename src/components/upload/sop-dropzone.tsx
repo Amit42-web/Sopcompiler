@@ -1,17 +1,12 @@
 "use client";
 
 import { useRef, useState, type DragEvent } from "react";
-import { UploadCloud, File, X } from "lucide-react";
+import { UploadCloud, File as FileIcon, X, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const ACCEPTED = ".pdf,.doc,.docx,.txt,.md";
-
-interface SelectedFile {
-  name: string;
-  size: number;
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -21,38 +16,39 @@ function formatSize(bytes: number): string {
 
 interface SopDropzoneProps {
   /**
-   * Called when files are confirmed for upload. When provided, the "Process
-   * SOPs" action hands the staged files off to the parent (e.g. FileManager)
-   * and clears the local staging list.
+   * Called with the staged File objects when the user clicks the process
+   * button. The dropzone stays populated until the caller resolves, so the
+   * caller can upload/parse before deciding whether to clear.
    */
-  onFilesAdded?: (files: SelectedFile[]) => void;
+  onProcess: (files: File[]) => void | Promise<void>;
+  /** When true, the process button shows a spinner and inputs are locked. */
+  processing?: boolean;
+  /** Label for the primary action button. */
+  processLabel?: string;
 }
 
 /**
- * Client-side SOP file picker with drag-and-drop.
- * Files are staged locally; wiring to the backend upload API is a drop-in swap.
+ * Client-side SOP file picker with drag-and-drop. Holds the actual File
+ * objects so the caller can upload and parse them through the API.
  */
-export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
+export function SopDropzone({
+  onProcess,
+  processing = false,
+  processLabel = "Process SOPs",
+}: SopDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [files, setFiles] = useState<SelectedFile[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
 
   function addFiles(list: FileList | null) {
     if (!list) return;
-    const next = Array.from(list).map((f) => ({ name: f.name, size: f.size }));
-    setFiles((prev) => [...prev, ...next]);
-  }
-
-  function handleProcess() {
-    if (onFilesAdded && files.length > 0) {
-      onFilesAdded(files);
-      setFiles([]);
-    }
+    setFiles((prev) => [...prev, ...Array.from(list)]);
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDragging(false);
+    if (processing) return;
     addFiles(event.dataTransfer.files);
   }
 
@@ -60,23 +56,34 @@ export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
+  async function handleProcess() {
+    if (files.length === 0 || processing) return;
+    await onProcess(files);
+  }
+
+  const openPicker = () => {
+    if (!processing) inputRef.current?.click();
+  };
+
   return (
     <div className="space-y-4">
       <div
         onDragOver={(e) => {
           e.preventDefault();
-          setIsDragging(true);
+          if (!processing) setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={openPicker}
         role="button"
         tabIndex={0}
+        aria-disabled={processing}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+          if (e.key === "Enter" || e.key === " ") openPicker();
         }}
         className={cn(
           "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-10 text-center transition-colors",
+          processing && "pointer-events-none opacity-60",
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-accent/50"
@@ -86,9 +93,7 @@ export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
           <UploadCloud className="h-7 w-7" />
         </span>
         <div>
-          <p className="font-medium">
-            Drag &amp; drop your SOP documents here
-          </p>
+          <p className="font-medium">Drag &amp; drop your SOP documents here</p>
           <p className="text-sm text-muted-foreground">
             or click to browse — PDF, DOC, DOCX, TXT, MD
           </p>
@@ -99,15 +104,14 @@ export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
           multiple
           accept={ACCEPTED}
           className="hidden"
+          disabled={processing}
           onChange={(e) => addFiles(e.target.files)}
         />
       </div>
 
       {files.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">
-            Selected files ({files.length})
-          </p>
+          <p className="text-sm font-medium">Selected files ({files.length})</p>
           <ul className="space-y-2">
             {files.map((file, index) => (
               <li
@@ -115,7 +119,7 @@ export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
                 className="flex items-center justify-between rounded-lg border bg-card px-4 py-3"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="truncate text-sm">{file.name}</span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {formatSize(file.size)}
@@ -125,6 +129,7 @@ export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
                   variant="ghost"
                   size="icon"
                   aria-label={`Remove ${file.name}`}
+                  disabled={processing}
                   onClick={() => removeFile(index)}
                 >
                   <X className="h-4 w-4" />
@@ -134,17 +139,17 @@ export function SopDropzone({ onFilesAdded }: SopDropzoneProps) {
           </ul>
 
           <div className="flex items-center gap-2 pt-2">
-            <Button onClick={handleProcess} disabled={!onFilesAdded}>
-              {onFilesAdded ? "Add to project" : "Process SOPs"}
+            <Button onClick={handleProcess} disabled={processing}>
+              {processing && <Loader2 className="h-4 w-4 animate-spin" />}
+              {processing ? "Processing…" : processLabel}
             </Button>
-            <Button variant="outline" onClick={() => setFiles([])}>
+            <Button
+              variant="outline"
+              disabled={processing}
+              onClick={() => setFiles([])}
+            >
               Clear all
             </Button>
-            {!onFilesAdded && (
-              <span className="text-xs text-muted-foreground">
-                Backend processing connects in Sprint 3.
-              </span>
-            )}
           </div>
         </div>
       )}

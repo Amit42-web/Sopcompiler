@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Upload,
-  FolderKanban,
   Braces,
   Users,
   Settings,
@@ -26,12 +25,6 @@ export const navItems: NavItem[] = [
     href: "/dashboard",
     icon: LayoutDashboard,
     description: "Overview of your RuleForge workspace",
-  },
-  {
-    title: "Projects",
-    href: "/projects",
-    icon: FolderKanban,
-    description: "Manage your rule-engine projects",
   },
   {
     title: "Upload SOP",
