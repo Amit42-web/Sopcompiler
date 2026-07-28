@@ -8,10 +8,25 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 Procedure (SOP) documents into executable **Rule Engine JSON**.
 
 This is a **single Next.js 15 application** (App Router, TypeScript, Tailwind,
-shadcn/ui). The UI and the API both live here — the API is implemented as
-Route Handlers under `src/app/api/*`, and the document-parsing + AI pipeline
-lives in plain TypeScript under `src/server/*`. There is no separate backend
-service.
+shadcn/ui) backed by **PostgreSQL via Prisma**. The UI and the API both live
+here — the API is implemented as Route Handlers under `src/app/api/*`, the
+document-parsing + AI pipeline lives in plain TypeScript under `src/server/*`,
+and everything is persisted to Postgres. There is no separate backend service.
+
+### Persistence
+
+- `prisma/schema.prisma` defines normalized tables: User, Project, SopFile,
+  Metadata, Section, Scenario, KnowledgeEntry, RuleSet, Rule, ValidationReport,
+  ProcessingRun, Activity.
+- `src/server/db.ts` is the Prisma client singleton (cached on `globalThis`).
+- `src/server/ingest.ts` is the **only** module that writes pipeline output:
+  it parses, runs the pipeline, and persists every artifact, then records a
+  ProcessingRun and Activity entries.
+- `src/server/queries.ts` holds all **paginated** read queries (dashboard,
+  activity, library, projects, project details) with mappers to the
+  client-safe types in `src/lib/types.ts`. Per-page counts avoid N+1.
+- Set `DATABASE_URL` (see `.env.example`). `npm run build` runs
+  `prisma generate`; `npm run db:migrate` applies migrations in production.
 
 ## Commands
 
@@ -138,7 +153,6 @@ src/
 
 ## Intentionally not implemented (future sprints)
 
-- **Supabase authentication** — scaffolded in Settings UI only.
-- **Database persistence** — `src/server/store.ts` is database-shaped but backed
-  by an in-memory `Map` on `globalThis`.
-- Do not wire these up unless the task explicitly asks for them.
+- **Supabase authentication** — scaffolded in Settings/Team UI only; roles are
+  assignable but not yet enforced.
+- Do not wire this up unless the task explicitly asks for it.

@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 
-import { store } from "@/server/store";
+import { prisma } from "@/server/db";
+import { listProjects } from "@/server/queries";
 
-/** GET /api/projects — list all projects. */
-export function GET() {
-  return NextResponse.json(store.listProjects());
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** GET /api/projects?page=1&pageSize=20 — paginated project list. */
+export async function GET(req: Request) {
+  const sp = new URL(req.url).searchParams;
+  return NextResponse.json(
+    await listProjects({
+      page: Number(sp.get("page") ?? 1),
+      pageSize: Number(sp.get("pageSize") ?? 20),
+    })
+  );
 }
 
 /** POST /api/projects — create a project. */
@@ -14,9 +24,11 @@ export async function POST(req: Request) {
   if (!name) {
     return NextResponse.json({ detail: "name is required" }, { status: 422 });
   }
-  const project = store.createProject({
-    name,
-    description: typeof body.description === "string" ? body.description : "",
+  const project = await prisma.project.create({
+    data: {
+      name,
+      description: typeof body.description === "string" ? body.description : "",
+    },
   });
   return NextResponse.json(project, { status: 201 });
 }

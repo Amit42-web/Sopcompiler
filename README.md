@@ -2,32 +2,68 @@
 
 Enterprise SaaS that converts **Standard Operating Procedure (SOP) documents**
 into **executable Rule Engine JSON** — built as a **single Next.js 15
-application**. The UI and the API (document parsing + AI pipeline + rule
-generation) both live in this one app; there is no separate backend service.
+application** backed by **PostgreSQL**. The UI and the API (document parsing +
+AI pipeline + rule generation + persistence) all live in this one app; there is
+no separate backend service.
+
+Every uploaded SOP and every artifact it produces (metadata, sections,
+scenarios, knowledge base, rules, validation reports) is **permanently stored**.
+Nothing resets when a session ends — the dashboard, projects, and SOP library
+all read live from the database.
 
 ## Architecture
 
 ```
 Browser ──▶ Next.js App Router (one app)
-              ├─ UI            src/app/(marketing)  +  src/app/(dashboard)
+              ├─ UI            src/app/(marketing) + src/app/(dashboard)
               ├─ API routes    src/app/api/*/route.ts
-              └─ pipeline      src/server/*.ts   (pure TypeScript, Node runtime)
+              ├─ pipeline      src/server/{parsing,sections,scenarios,…}.ts  (pure TS)
+              ├─ ingest        src/server/ingest.ts    (runs pipeline + persists)
+              ├─ queries       src/server/queries.ts   (paginated reads)
+              └─ database      Prisma → PostgreSQL      (prisma/schema.prisma)
 ```
 
 The frontend calls same-origin API routes through `src/lib/api.ts`.
+
+## Persistence & data model
+
+Normalized PostgreSQL tables (see `prisma/schema.prisma`), accessed through
+Prisma:
+
+`User` · `Project` · `SopFile` · `Metadata` · `Section` · `Scenario` ·
+`KnowledgeEntry` · `RuleSet` · `Rule` · `ValidationReport` · `ProcessingRun` ·
+`Activity`
+
+- **Upload → `POST /api/projects/:id/files`** stores the original SOP text, runs
+  the pipeline, persists every intermediate result, generates + validates rules,
+  records a `ProcessingRun`, and writes `Activity` entries.
+- **Dashboard / library / projects** read straight from the database — the
+  pipeline is never re-run to display data.
+- List endpoints are **paginated** and compute per-file scenario/rule counts
+  with a constant number of queries (no N+1), so a workspace scales to thousands
+  of SOPs.
+
+## Quick start
+
+```bash
+npm install                      # also runs `prisma generate`
+cp .env.example .env             # set DATABASE_URL to your Postgres
+npx prisma migrate deploy        # create the tables (or `prisma migrate dev`)
+npm run dev                      # http://localhost:3000
+```
 
 ## Sprint map
 
 | Sprint | Scope                                          | Where                                                     |
 | ------ | ---------------------------------------------- | --------------------------------------------------------- |
 | 1      | Next.js 15 foundation, dashboard, nav, landing | `src/app/(marketing)`, `src/app/(dashboard)`              |
-| 2      | Projects, SOP upload UI, file management       | `projects/`, `upload/`, `components/files/`               |
+| 2      | Projects, SOP upload UI, SOP library            | `projects/`, `upload/`, `library/`                        |
 | 3      | Upload API + PDF/DOCX/TXT parsing              | `src/app/api/projects/[id]/files`, `src/server/parsing.ts`|
 | 4      | AI pipeline, text extraction, section detection| `src/server/pipeline.ts`, `src/server/sections.ts`        |
 | 5      | Scenario extraction, resolution grouping       | `src/server/scenarios.ts`                                 |
 | 6      | Metadata extraction, knowledge base            | `src/server/metadata.ts`, `src/server/knowledge-base.ts`  |
 | 7      | Rule Engine JSON generation                    | `src/server/rules-engine.ts`                              |
-| 8      | Rule Builder UI                                | `src/app/(dashboard)/rules`, `components/rules/`          |
+| 8      | Rule Builder UI (in Project Details)           | `components/rules/rule-builder`                            |
 | 9      | Validation, export, user management            | `src/server/validation.ts`, `export.ts`, `api/team/`      |
 
 ## Tech Stack

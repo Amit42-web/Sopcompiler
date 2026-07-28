@@ -1,7 +1,8 @@
 import {
   LayoutDashboard,
+  FolderKanban,
+  Library,
   Upload,
-  Braces,
   Users,
   Settings,
   type LucideIcon,
@@ -16,27 +17,32 @@ export interface NavItem {
 
 /**
  * Primary application navigation.
- * Shared by the desktop sidebar and the mobile navigation drawer
- * so both stay in sync from a single source of truth.
+ * Shared by the desktop sidebar and the mobile navigation drawer.
  */
 export const navItems: NavItem[] = [
   {
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
-    description: "Overview of your RuleForge workspace",
+    description: "Live workspace overview",
+  },
+  {
+    title: "Projects",
+    href: "/projects",
+    icon: FolderKanban,
+    description: "Browse and manage projects",
+  },
+  {
+    title: "SOP Library",
+    href: "/library",
+    icon: Library,
+    description: "Every uploaded SOP",
   },
   {
     title: "Upload SOP",
     href: "/upload",
     icon: Upload,
-    description: "Import SOP documents for rule extraction",
-  },
-  {
-    title: "Rule Builder",
-    href: "/rules",
-    icon: Braces,
-    description: "Review and edit generated rules",
+    description: "Import SOP documents",
   },
   {
     title: "Team",
@@ -48,6 +54,6 @@ export const navItems: NavItem[] = [
     title: "Settings",
     href: "/settings",
     icon: Settings,
-    description: "Configure your workspace preferences",
+    description: "Workspace preferences",
   },
 ];

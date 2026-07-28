@@ -34,3 +34,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated client (regenerated on install/build)
+/src/generated
+
+# local postgres data (dev only)
+/.pgdata
+/.pgrun

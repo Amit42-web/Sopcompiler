@@ -1,31 +1,23 @@
 import { NextResponse } from "next/server";
 
-import type { SopFile } from "@/lib/types";
-import { store } from "@/server/store";
-import { newId } from "@/server/id";
-import { parseDocument, UnsupportedFileError } from "@/server/parsing";
+import { prisma } from "@/server/db";
+import { processUpload } from "@/server/ingest";
+import { UnsupportedFileError } from "@/server/parsing";
 
 export const runtime = "nodejs";
 
-/** GET /api/projects/:id/files — list files in a project. */
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  if (!store.getProject(id)) {
-    return NextResponse.json({ detail: "Project not found" }, { status: 404 });
-  }
-  return NextResponse.json(store.listFiles(id));
-}
-
-/** POST /api/projects/:id/files — upload + parse an SOP document. */
+/**
+ * POST /api/projects/:id/files — upload + fully process an SOP.
+ * Persists the raw document and every pipeline artifact, generates & validates
+ * rules, and returns the outcome (including the project id for redirect).
+ */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  if (!store.getProject(id)) {
+  const project = await prisma.project.findUnique({ where: { id } });
+  if (!project) {
     return NextResponse.json({ detail: "Project not found" }, { status: 404 });
   }
 
@@ -38,36 +30,20 @@ export async function POST(
     );
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const record: SopFile = {
-    id: newId("file"),
-    project_id: id,
-    filename: file.name || "untitled",
-    content_type: file.type || "application/octet-stream",
-    size_bytes: bytes.byteLength,
-    status: "uploaded",
-    created_at: new Date().toISOString(),
-  };
-
   try {
-    const parsed = await parseDocument(
-      record.filename,
-      record.content_type,
-      bytes
-    );
-    record.page_count = parsed.pageCount ?? undefined;
-    record.char_count = parsed.charCount;
-    record.status = "parsed";
-    store.addFile(record, parsed.text);
-    return NextResponse.json(record, { status: 201 });
+    const outcome = await processUpload({
+      projectId: id,
+      filename: file.name || "untitled",
+      contentType: file.type || "application/octet-stream",
+      bytes: new Uint8Array(await file.arrayBuffer()),
+    });
+    return NextResponse.json(outcome, { status: 201 });
   } catch (err) {
     if (err instanceof UnsupportedFileError) {
-      record.status = "error";
-      store.addFile(record, "");
       return NextResponse.json({ detail: err.message }, { status: 415 });
     }
     return NextResponse.json(
-      { detail: "Failed to parse document" },
+      { detail: "Failed to process document" },
       { status: 500 }
     );
   }

@@ -1,0 +1,227 @@
+// RuleForge AI — persistent data model (PostgreSQL).
+// Normalized tables for the full SOP → Rule Engine pipeline.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  draft
+  processing
+  ready
+  error
+}
+
+enum FileStatus {
+  uploaded
+  parsing
+  parsed
+  processing
+  processed
+  error
+}
+
+enum ActivityType {
+  sop_uploaded
+  metadata_extracted
+  sections_detected
+  scenarios_extracted
+  knowledge_base_built
+  rules_generated
+  validation_completed
+  json_exported
+  sop_reprocessed
+  sop_renamed
+  sop_duplicated
+  sop_deleted
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   @default("viewer") // owner | admin | editor | viewer
+  status    String   @default("active") // active | invited
+  createdAt DateTime @default(now())
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String        @default("")
+  department  String?
+  status      ProjectStatus @default(draft)
+  version     Int           @default(1)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  files      SopFile[]
+  ruleSets   RuleSet[]
+  activities Activity[]
+  runs       ProcessingRun[]
+
+  @@index([createdAt])
+}
+
+model SopFile {
+  id          String     @id @default(cuid())
+  projectId   String
+  filename    String
+  contentType String
+  sizeBytes   Int
+  status      FileStatus @default(uploaded)
+  version     Int        @default(1)
+  pageCount   Int?
+  charCount   Int?
+  rawText     String     @default("") @db.Text
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  metadata       Metadata?
+  sections       Section[]
+  scenarios      Scenario[]
+  knowledgeBase  KnowledgeEntry[]
+  runs           ProcessingRun[]
+  activities     Activity[]
+
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+model Metadata {
+  id            String   @id @default(cuid())
+  fileId        String   @unique
+  title         String?
+  department    String?
+  version       String?
+  effectiveDate String?
+  owner         String?
+  tags          String[]
+
+  file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+}
+
+model Section {
+  id     String @id @default(cuid())
+  fileId String
+  title  String
+  level  Int    @default(1)
+  text   String @db.Text
+  order  Int    @default(0)
+
+  file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+}
+
+model Scenario {
+  id              String  @id @default(cuid())
+  fileId          String
+  sectionRef      String? // originating section id (heuristic)
+  condition       String  @db.Text
+  resolution      String  @db.Text
+  resolutionGroup String  @default("Other")
+  confidence      Float   @default(0.5)
+
+  file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+}
+
+model KnowledgeEntry {
+  id          String @id @default(cuid())
+  fileId      String
+  term        String
+  definition  String @db.Text
+  occurrences Int    @default(1)
+
+  file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+}
+
+model RuleSet {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String   @default("Generated rule set")
+  version   String   @default("1.0.0")
+  createdAt DateTime @default(now())
+
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rules             Rule[]
+  validationReports ValidationReport[]
+
+  @@index([projectId])
+}
+
+model Rule {
+  id              String  @id @default(cuid())
+  ruleSetId       String
+  name            String
+  description     String  @default("") @db.Text
+  priority        Int     @default(50)
+  enabled         Boolean @default(true)
+  conditions      Json // RuleCondition[]
+  actions         Json // RuleAction[]
+  sourceScenario  String?
+
+  ruleSet RuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+
+  @@index([ruleSetId])
+}
+
+model ValidationReport {
+  id           String   @id @default(cuid())
+  ruleSetId    String
+  valid        Boolean
+  checkedRules Int
+  issues       Json // ValidationIssue[]
+  createdAt    DateTime @default(now())
+
+  ruleSet RuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+
+  @@index([ruleSetId])
+}
+
+// One row per pipeline execution — powers success rate, last processing time,
+// and per-file version history.
+model ProcessingRun {
+  id         String   @id @default(cuid())
+  projectId  String
+  fileId     String
+  success    Boolean
+  durationMs Int      @default(0)
+  scenarios  Int      @default(0)
+  rules      Int      @default(0)
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  file    SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([fileId])
+  @@index([createdAt])
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  message   String
+  projectId String?
+  fileId    String?
+  createdAt DateTime     @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  file    SopFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([projectId])
+}

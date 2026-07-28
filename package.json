@@ -5,22 +5,26 @@
   "description": "RuleForge AI — convert SOP documents into executable Rule Engine JSON.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@radix-ui/react-slot": "^1.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
     "mammoth": "^1.9.0",
-    "unpdf": "^0.12.1",
     "next": "15.5.22",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "unpdf": "^0.12.1"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -30,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.22",
     "postcss": "^8",
+    "prisma": "^6.19.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }

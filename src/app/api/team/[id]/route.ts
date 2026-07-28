@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { store } from "@/server/store";
+import { prisma } from "@/server/db";
 
-const ROLES = ["admin", "editor", "viewer"] as const;
+export const runtime = "nodejs";
+
+const ROLES = ["admin", "editor", "viewer"];
 
 /** PATCH /api/team/:id — change a member's role. */
 export async function PATCH(
@@ -10,7 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const member = store.getMember(id);
+  const member = await prisma.user.findUnique({ where: { id } });
   if (!member) {
     return NextResponse.json({ detail: "Member not found" }, { status: 404 });
   }
@@ -22,15 +24,17 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}));
-  const role = body.role;
-  if (!ROLES.includes(role)) {
+  if (!ROLES.includes(body.role)) {
     return NextResponse.json(
       { detail: `role must be one of ${ROLES.join(", ")}` },
       { status: 422 }
     );
   }
-
-  return NextResponse.json(store.updateMember(id, { role }));
+  const updated = await prisma.user.update({
+    where: { id },
+    data: { role: body.role },
+  });
+  return NextResponse.json(updated);
 }
 
 /** DELETE /api/team/:id — remove a member. */
@@ -39,7 +43,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const member = store.getMember(id);
+  const member = await prisma.user.findUnique({ where: { id } });
   if (!member) {
     return NextResponse.json({ detail: "Member not found" }, { status: 404 });
   }
@@ -49,7 +53,6 @@ export async function DELETE(
       { status: 400 }
     );
   }
-
-  store.removeMember(id);
+  await prisma.user.delete({ where: { id } });
   return new Response(null, { status: 204 });
 }
