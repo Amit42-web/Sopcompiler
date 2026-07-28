@@ -27,8 +27,8 @@ The frontend calls same-origin API routes through `src/lib/api.ts`.
 
 ## Persistence & data model
 
-Normalized PostgreSQL tables (see `prisma/schema.prisma`), accessed through
-Prisma:
+Normalized tables (see `prisma/schema.prisma`), accessed through Prisma —
+SQLite by default, PostgreSQL-ready:
 
 `User` · `Project` · `SopFile` · `Metadata` · `Section` · `Scenario` ·
 `KnowledgeEntry` · `RuleSet` · `Rule` · `ValidationReport` · `ProcessingRun` ·
@@ -43,14 +43,27 @@ Prisma:
   with a constant number of queries (no N+1), so a workspace scales to thousands
   of SOPs.
 
-## Quick start
+## Quick start (zero config)
 
 ```bash
-npm install                      # also runs `prisma generate`
-cp .env.example .env             # set DATABASE_URL to your Postgres
-npx prisma migrate deploy        # create the tables (or `prisma migrate dev`)
-npm run dev                      # http://localhost:3000
+npm install     # runs prisma generate
+npm run dev     # runs migrations, then starts http://localhost:3000
 ```
+
+That's it — the app uses a local **SQLite** file (`prisma/dev.db`, created
+automatically), so it runs and **persists with no database server**. Uploaded
+SOPs and all their artifacts survive restarts.
+
+**Optional configuration** (put in `.env.local`, which is git-ignored):
+
+- **PostgreSQL** for production/scale — set `DATABASE_URL` to your Postgres URL
+  and change the datasource `provider` in `prisma/schema.prisma` to
+  `postgresql`, then `npm run db:migrate`.
+- **Invitation emails** — set `SMTP_URL` (or `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/
+  `SMTP_PASS`) and `MAIL_FROM`; invitations are then emailed to the invitee.
+- **LLM enhancer** — set `ANTHROPIC_API_KEY`.
+
+See `.env.example` for all options.
 
 ## Sprint map
 

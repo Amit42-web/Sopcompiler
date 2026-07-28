@@ -25,7 +25,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env
+# .env holds only the non-secret SQLite default and is committed so the app
+# runs out of the box. Put secrets (SMTP_*, ANTHROPIC_API_KEY, a Postgres URL)
+# in .env.local, which is ignored.
 .env*.local
 
 # vercel
@@ -37,6 +39,10 @@ next-env.d.ts
 
 # prisma generated client (regenerated on install/build)
 /src/generated
+
+# sqlite database files (created locally on first run)
+/prisma/*.db
+/prisma/*.db-journal
 
 # local postgres data (dev only)
 /.pgdata

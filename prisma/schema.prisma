@@ -1,5 +1,10 @@
-// RuleForge AI — persistent data model (PostgreSQL).
-// Normalized tables for the full SOP → Rule Engine pipeline.
+// RuleForge AI — persistent data model.
+//
+// Defaults to a zero-config SQLite file (works with no database server), so
+// the app runs and persists out of the box. For production/scale, switch the
+// `provider` to "postgresql" and point DATABASE_URL at your Postgres — the
+// model is normalized and portable. Enum-like fields are stored as validated
+// strings and list/JSON fields as JSON strings for cross-database portability.
 
 generator client {
   provider = "prisma-client-js"
@@ -7,39 +12,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-enum ProjectStatus {
-  draft
-  processing
-  ready
-  error
-}
-
-enum FileStatus {
-  uploaded
-  parsing
-  parsed
-  processing
-  processed
-  error
-}
-
-enum ActivityType {
-  sop_uploaded
-  metadata_extracted
-  sections_detected
-  scenarios_extracted
-  knowledge_base_built
-  rules_generated
-  validation_completed
-  json_exported
-  sop_reprocessed
-  sop_renamed
-  sop_duplicated
-  sop_deleted
 }
 
 model User {
@@ -48,18 +22,19 @@ model User {
   name      String
   role      String   @default("viewer") // owner | admin | editor | viewer
   status    String   @default("active") // active | invited
+  invitedAt DateTime?
   createdAt DateTime @default(now())
 }
 
 model Project {
-  id          String        @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
-  description String        @default("")
+  description String   @default("")
   department  String?
-  status      ProjectStatus @default(draft)
-  version     Int           @default(1)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  status      String   @default("draft") // draft | processing | ready | error
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   files      SopFile[]
   ruleSets   RuleSet[]
@@ -70,27 +45,27 @@ model Project {
 }
 
 model SopFile {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid())
   projectId   String
   filename    String
   contentType String
   sizeBytes   Int
-  status      FileStatus @default(uploaded)
-  version     Int        @default(1)
+  status      String   @default("uploaded")
+  version     Int      @default(1)
   pageCount   Int?
   charCount   Int?
-  contentHash String     @default("")
-  rawText     String     @default("") @db.Text
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  contentHash String   @default("")
+  rawText     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  metadata       Metadata?
-  sections       Section[]
-  scenarios      Scenario[]
-  knowledgeBase  KnowledgeEntry[]
-  runs           ProcessingRun[]
-  activities     Activity[]
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  metadata      Metadata?
+  sections      Section[]
+  scenarios     Scenario[]
+  knowledgeBase KnowledgeEntry[]
+  runs          ProcessingRun[]
+  activities    Activity[]
 
   @@index([projectId])
   @@index([createdAt])
@@ -98,14 +73,14 @@ model SopFile {
 }
 
 model Metadata {
-  id            String   @id @default(cuid())
-  fileId        String   @unique
+  id            String  @id @default(cuid())
+  fileId        String  @unique
   title         String?
   department    String?
   version       String?
   effectiveDate String?
   owner         String?
-  tags          String[]
+  tags          String  @default("[]") // JSON array of strings
 
   file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 }
@@ -115,7 +90,7 @@ model Section {
   fileId String
   title  String
   level  Int    @default(1)
-  text   String @db.Text
+  text   String
   order  Int    @default(0)
 
   file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
@@ -124,13 +99,13 @@ model Section {
 }
 
 model Scenario {
-  id              String  @id @default(cuid())
+  id              String @id @default(cuid())
   fileId          String
-  sectionRef      String? // originating section id (heuristic)
-  condition       String  @db.Text
-  resolution      String  @db.Text
-  resolutionGroup String  @default("Other")
-  confidence      Float   @default(0.5)
+  sectionRef      String?
+  condition       String
+  resolution      String
+  resolutionGroup String @default("Other")
+  confidence      Float  @default(0.5)
 
   file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
@@ -141,7 +116,7 @@ model KnowledgeEntry {
   id          String @id @default(cuid())
   fileId      String
   term        String
-  definition  String @db.Text
+  definition  String
   occurrences Int    @default(1)
 
   file SopFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
@@ -164,15 +139,15 @@ model RuleSet {
 }
 
 model Rule {
-  id              String  @id @default(cuid())
-  ruleSetId       String
-  name            String
-  description     String  @default("") @db.Text
-  priority        Int     @default(50)
-  enabled         Boolean @default(true)
-  conditions      Json // RuleCondition[]
-  actions         Json // RuleAction[]
-  sourceScenario  String?
+  id             String  @id @default(cuid())
+  ruleSetId      String
+  name           String
+  description    String  @default("")
+  priority       Int     @default(50)
+  enabled        Boolean @default(true)
+  conditions     String  @default("[]") // JSON RuleCondition[]
+  actions        String  @default("[]") // JSON RuleAction[]
+  sourceScenario String?
 
   ruleSet RuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
 
@@ -184,7 +159,7 @@ model ValidationReport {
   ruleSetId    String
   valid        Boolean
   checkedRules Int
-  issues       Json // ValidationIssue[]
+  issues       String   @default("[]") // JSON ValidationIssue[]
   createdAt    DateTime @default(now())
 
   ruleSet RuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
@@ -192,8 +167,6 @@ model ValidationReport {
   @@index([ruleSetId])
 }
 
-// One row per pipeline execution — powers success rate, last processing time,
-// and per-file version history.
 model ProcessingRun {
   id         String   @id @default(cuid())
   projectId  String
@@ -214,12 +187,12 @@ model ProcessingRun {
 }
 
 model Activity {
-  id        String       @id @default(cuid())
-  type      ActivityType
+  id        String   @id @default(cuid())
+  type      String
   message   String
   projectId String?
   fileId    String?
-  createdAt DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   file    SopFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)

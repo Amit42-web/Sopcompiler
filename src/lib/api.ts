@@ -126,7 +126,13 @@ export const api = {
   // --- Team ----------------------------------------------------------------
   listTeam: () => request<TeamMember[]>("/api/team"),
   inviteMember: (body: { email: string; name?: string; role: string }) =>
-    request<TeamMember>("/api/team/invite", {
+    request<
+      TeamMember & {
+        emailSent: boolean;
+        emailConfigured: boolean;
+        emailError?: string;
+      }
+    >("/api/team/invite", {
       method: "POST",
       body: JSON.stringify(body),
     }),

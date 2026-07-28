@@ -8,25 +8,34 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 Procedure (SOP) documents into executable **Rule Engine JSON**.
 
 This is a **single Next.js 15 application** (App Router, TypeScript, Tailwind,
-shadcn/ui) backed by **PostgreSQL via Prisma**. The UI and the API both live
+shadcn/ui) with **persistent storage via Prisma**. The UI and the API both live
 here — the API is implemented as Route Handlers under `src/app/api/*`, the
 document-parsing + AI pipeline lives in plain TypeScript under `src/server/*`,
-and everything is persisted to Postgres. There is no separate backend service.
+and everything is persisted to the database. There is no separate backend
+service.
 
 ### Persistence
 
-- `prisma/schema.prisma` defines normalized tables: User, Project, SopFile,
-  Metadata, Section, Scenario, KnowledgeEntry, RuleSet, Rule, ValidationReport,
-  ProcessingRun, Activity.
+- **Zero-config by default:** `prisma/schema.prisma` uses **SQLite** (a local
+  file), and `.env` ships a committed `DATABASE_URL="file:./dev.db"`, so the app
+  runs and persists with no database server. For production/scale, switch the
+  datasource `provider` to `postgresql` and override `DATABASE_URL` in
+  `.env.local` — the schema is normalized and portable (enum-like fields are
+  validated strings; list/JSON fields are stored as JSON strings).
+- Normalized tables: User, Project, SopFile, Metadata, Section, Scenario,
+  KnowledgeEntry, RuleSet, Rule, ValidationReport, ProcessingRun, Activity.
 - `src/server/db.ts` is the Prisma client singleton (cached on `globalThis`).
 - `src/server/ingest.ts` is the **only** module that writes pipeline output:
-  it parses, runs the pipeline, and persists every artifact, then records a
-  ProcessingRun and Activity entries.
-- `src/server/queries.ts` holds all **paginated** read queries (dashboard,
-  activity, library, projects, project details) with mappers to the
-  client-safe types in `src/lib/types.ts`. Per-page counts avoid N+1.
-- Set `DATABASE_URL` (see `.env.example`). `npm run build` runs
-  `prisma generate`; `npm run db:migrate` applies migrations in production.
+  it parses, runs the pipeline, persists every artifact, records a
+  ProcessingRun and Activity entries. Uploads are **deduplicated by content
+  hash** so the same SOP is never stored twice.
+- `src/server/queries.ts` holds all **paginated** read queries with mappers to
+  the client-safe types in `src/lib/types.ts`. Per-page counts avoid N+1.
+- `src/server/mailer.ts` sends invitation emails via SMTP (nodemailer) when
+  `SMTP_*` env vars are set; otherwise invites are recorded without emailing.
+- `predev`/`prestart`/`build` run `prisma migrate deploy`, so tables always
+  exist. Secrets go in `.env.local` (git-ignored); `.env` holds only the
+  non-secret SQLite default.
 
 ## Commands
 

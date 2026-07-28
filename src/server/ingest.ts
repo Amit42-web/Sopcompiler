@@ -10,12 +10,16 @@
 import { createHash } from "node:crypto";
 
 import { prisma } from "@/server/db";
-import type { ActivityType, Prisma } from "@/generated/prisma";
 import { parseDocument } from "@/server/parsing";
 import { runPipeline } from "@/server/pipeline";
 import { generateRuleSet } from "@/server/rules-engine";
 import { validateRuleSet } from "@/server/validation";
-import type { PipelineResult, Rule, RuleSet } from "@/lib/types";
+import type {
+  ActivityType,
+  PipelineResult,
+  Rule,
+  RuleSet,
+} from "@/lib/types";
 
 async function logActivity(
   type: ActivityType,
@@ -60,7 +64,7 @@ async function persistPipeline(fileId: string, result: PipelineResult) {
       version: result.metadata.version,
       effectiveDate: result.metadata.effective_date,
       owner: result.metadata.owner,
-      tags: result.metadata.tags,
+      tags: JSON.stringify(result.metadata.tags),
     },
     update: {
       title: result.metadata.title,
@@ -68,7 +72,7 @@ async function persistPipeline(fileId: string, result: PipelineResult) {
       version: result.metadata.version,
       effectiveDate: result.metadata.effective_date,
       owner: result.metadata.owner,
-      tags: result.metadata.tags,
+      tags: JSON.stringify(result.metadata.tags),
     },
   });
 
@@ -170,8 +174,8 @@ export async function regenerateProjectRules(projectId: string): Promise<{
           description: r.description,
           priority: r.priority,
           enabled: r.enabled,
-          conditions: r.all as unknown as Prisma.InputJsonValue,
-          actions: r.actions as unknown as Prisma.InputJsonValue,
+          conditions: JSON.stringify(r.all),
+          actions: JSON.stringify(r.actions),
           sourceScenario: r.source_scenario_id,
         })),
       },
@@ -179,7 +183,7 @@ export async function regenerateProjectRules(projectId: string): Promise<{
         create: {
           valid: report.valid,
           checkedRules: report.checked_rules,
-          issues: report.issues as unknown as Prisma.InputJsonValue,
+          issues: JSON.stringify(report.issues),
         },
       },
     },

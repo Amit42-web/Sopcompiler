@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserPlus, Trash2, Loader2, AlertTriangle } from "lucide-react";
+import {
+  UserPlus,
+  Trash2,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +42,7 @@ export function TeamManager() {
   const [role, setRole] = useState<(typeof ROLES)[number]>("editor");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function refresh() {
     try {
@@ -56,10 +63,17 @@ export function TeamManager() {
     if (!email.trim()) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      await api.inviteMember({ email: email.trim(), role });
+      const target = email.trim();
+      const res = await api.inviteMember({ email: target, role });
       setEmail("");
       await refresh();
+      setNotice(
+        res.emailSent
+          ? `Invitation email sent to ${target}.`
+          : `${target} added as ${role}. Email not sent — configure SMTP (SMTP_URL / SMTP_HOST) to deliver invitations.`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to invite member.");
     } finally {
@@ -142,6 +156,13 @@ export function TeamManager() {
         <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
           <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          {notice}
         </div>
       )}
 

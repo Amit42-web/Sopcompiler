@@ -9,10 +9,13 @@
 import { prisma } from "@/server/db";
 import type {
   ActivityItem,
+  ActivityType,
   DashboardStats,
+  FileStatus,
   LibraryRow,
   Paginated,
   ProjectDetails,
+  ProjectStatus,
   ProjectSummary,
   Rule,
   RuleCondition,
@@ -108,7 +111,7 @@ export async function dashboardStats(): Promise<DashboardStats> {
       filename: f.filename,
       project_id: f.projectId,
       project_name: f.project.name,
-      status: f.status,
+      status: f.status as FileStatus,
       scenario_count: f._count.scenarios,
       processed_at: f.updatedAt.toISOString(),
     })),
@@ -124,7 +127,7 @@ export async function recentActivity(limit = 20): Promise<ActivityItem[]> {
   });
   return rows.map((a) => ({
     id: a.id,
-    type: a.type,
+    type: a.type as ActivityType,
     message: a.message,
     project_id: a.projectId,
     file_id: a.fileId,
@@ -142,7 +145,7 @@ export async function listLibrary(opts: {
   const page = clampPage(opts.page);
   const pageSize = clampSize(opts.pageSize);
   const where = opts.search
-    ? { filename: { contains: opts.search, mode: "insensitive" as const } }
+    ? { filename: { contains: opts.search } }
     : {};
 
   const [total, files] = await Promise.all([
@@ -171,7 +174,7 @@ export async function listLibrary(opts: {
       upload_date: f.createdAt.toISOString(),
       last_modified: f.updatedAt.toISOString(),
       version: f.version,
-      status: f.status,
+      status: f.status as FileStatus,
       scenario_count: counts.scenarios.get(f.id) ?? 0,
       rule_count: counts.rules.get(f.id) ?? 0,
     })),
@@ -211,7 +214,7 @@ export async function listProjects(opts: {
       name: p.name,
       description: p.description,
       department: p.department,
-      status: p.status,
+      status: p.status as ProjectStatus,
       file_count: p._count.files,
       scenario_count: p.files.reduce((n, f) => n + f._count.scenarios, 0),
       rule_count: p.ruleSets.reduce((n, r) => n + r._count.rules, 0),
@@ -225,14 +228,22 @@ export async function listProjects(opts: {
   };
 }
 
+function parseJson<T>(value: string, fallback: T): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 function mapRule(r: {
   id: string;
   name: string;
   description: string;
   priority: number;
   enabled: boolean;
-  conditions: unknown;
-  actions: unknown;
+  conditions: string;
+  actions: string;
   sourceScenario: string | null;
 }): Rule {
   return {
@@ -241,8 +252,8 @@ function mapRule(r: {
     description: r.description,
     priority: r.priority,
     enabled: r.enabled,
-    all: (r.conditions as RuleCondition[]) ?? [],
-    actions: (r.actions as RuleAction[]) ?? [],
+    all: parseJson<RuleCondition[]>(r.conditions, []),
+    actions: parseJson<RuleAction[]>(r.actions, []),
     source_scenario_id: r.sourceScenario ?? undefined,
   };
 }
@@ -288,7 +299,7 @@ export async function getProjectDetails(
     ? {
         valid: validationRow.valid,
         checked_rules: validationRow.checkedRules,
-        issues: (validationRow.issues as unknown as ValidationIssue[]) ?? [],
+        issues: parseJson<ValidationIssue[]>(validationRow.issues, []),
       }
     : null;
 
@@ -297,7 +308,7 @@ export async function getProjectDetails(
     name: project.name,
     description: project.description,
     department: project.department,
-    status: project.status,
+    status: project.status as ProjectStatus,
     file_count: project.files.length,
     scenario_count: project.files.reduce(
       (n, f) => n + f.scenarios.length,
@@ -315,7 +326,7 @@ export async function getProjectDetails(
       upload_date: f.createdAt.toISOString(),
       last_modified: f.updatedAt.toISOString(),
       version: f.version,
-      status: f.status,
+      status: f.status as FileStatus,
       scenario_count: counts.scenarios.get(f.id) ?? 0,
       rule_count: counts.rules.get(f.id) ?? 0,
     })),
@@ -327,7 +338,7 @@ export async function getProjectDetails(
         version: f.metadata!.version ?? undefined,
         effective_date: f.metadata!.effectiveDate ?? undefined,
         owner: f.metadata!.owner ?? undefined,
-        tags: f.metadata!.tags,
+        tags: parseJson<string[]>(f.metadata!.tags, []),
       })),
     sections: project.files.flatMap((f) =>
       f.sections.map((s) => ({
