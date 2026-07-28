@@ -7,6 +7,8 @@
  * entries. This is the single place that writes pipeline output to the database.
  */
 
+import { createHash } from "node:crypto";
+
 import { prisma } from "@/server/db";
 import type { ActivityType, Prisma } from "@/generated/prisma";
 import { parseDocument } from "@/server/parsing";
@@ -24,6 +26,26 @@ async function logActivity(
   await prisma.activity.create({
     data: { type, message, projectId, fileId },
   });
+}
+
+/** Content hash of a document's bytes — used to detect duplicate uploads. */
+export function hashBytes(bytes: Uint8Array): string {
+  return createHash("sha256").update(Buffer.from(bytes)).digest("hex");
+}
+
+/** The most recent stored SOP with identical content, if any. */
+export async function findDuplicateByHash(hash: string) {
+  return prisma.sopFile.findFirst({
+    where: { contentHash: hash },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/** Normalized key for de-duplicating scenarios across a project. */
+function scenarioKey(condition: string, resolution: string): string {
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return `${norm(condition)}=>${norm(resolution)}`;
 }
 
 /** Persist the pipeline output for a file (metadata, sections, scenarios, KB). */
@@ -95,9 +117,21 @@ export async function regenerateProjectRules(projectId: string): Promise<{
   ruleCount: number;
   valid: boolean;
 }> {
-  const scenarios = await prisma.scenario.findMany({
+  const allScenarios = await prisma.scenario.findMany({
     where: { file: { projectId } },
+    orderBy: { confidence: "desc" },
   });
+
+  // De-duplicate across the whole project so the same condition → resolution
+  // (even if it appears in multiple files) yields a single rule.
+  const seen = new Set<string>();
+  const scenarios = allScenarios.filter((s) => {
+    const key = scenarioKey(s.condition, s.resolution);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   if (scenarios.length === 0) {
     await prisma.ruleSet.deleteMany({ where: { projectId } });
     return { ruleSetId: null, ruleCount: 0, valid: true };
@@ -190,6 +224,7 @@ export async function processUpload(params: {
       status: "processing",
       pageCount: parsed.pageCount ?? undefined,
       charCount: parsed.charCount,
+      contentHash: hashBytes(bytes),
       rawText: parsed.text,
     },
   });

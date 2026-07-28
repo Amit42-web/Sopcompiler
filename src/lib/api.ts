@@ -81,6 +81,24 @@ export const api = {
   deleteProject: (id: string) =>
     request<void>(`/api/projects/${id}`, { method: "DELETE" }),
 
+  // --- Upload (workspace-level, deduplicated) ------------------------------
+  upload: async (files: File[], name?: string) => {
+    const form = new FormData();
+    for (const f of files) form.append("file", f);
+    if (name) form.append("name", name);
+    const res = await fetch(`${API_BASE_URL}/api/upload`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) throw new ApiError(res.status, await res.text());
+    return (await res.json()) as {
+      projectId: string;
+      created: number;
+      duplicates: number;
+      errors: string[];
+    };
+  },
+
   // --- Files (SOPs) --------------------------------------------------------
   uploadFile: async (projectId: string, file: File) => {
     const form = new FormData();

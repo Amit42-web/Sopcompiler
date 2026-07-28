@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/server/db";
-import { processUpload } from "@/server/ingest";
+import { processUpload, hashBytes } from "@/server/ingest";
 import { UnsupportedFileError } from "@/server/parsing";
 
 export const runtime = "nodejs";
@@ -30,12 +30,31 @@ export async function POST(
     );
   }
 
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  // Skip re-ingesting a document already present in this project.
+  const duplicate = await prisma.sopFile.findFirst({
+    where: { projectId: id, contentHash: hashBytes(bytes) },
+  });
+  if (duplicate) {
+    return NextResponse.json(
+      {
+        fileId: duplicate.id,
+        projectId: id,
+        scenarioCount: 0,
+        ruleCount: 0,
+        duplicate: true,
+      },
+      { status: 200 }
+    );
+  }
+
   try {
     const outcome = await processUpload({
       projectId: id,
       filename: file.name || "untitled",
       contentType: file.type || "application/octet-stream",
-      bytes: new Uint8Array(await file.arrayBuffer()),
+      bytes,
     });
     return NextResponse.json(outcome, { status: 201 });
   } catch (err) {

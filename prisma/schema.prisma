@@ -79,6 +79,7 @@ model SopFile {
   version     Int        @default(1)
   pageCount   Int?
   charCount   Int?
+  contentHash String     @default("")
   rawText     String     @default("") @db.Text
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
@@ -93,6 +94,7 @@ model SopFile {
 
   @@index([projectId])
   @@index([createdAt])
+  @@index([contentHash])
 }
 
 model Metadata {

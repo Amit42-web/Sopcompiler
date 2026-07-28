@@ -29,12 +29,10 @@ export function UploadWorkflow() {
     setProcessing(true);
     setError(null);
     try {
-      const project = await api.createProject({ name: deriveName(files) });
-      for (const file of files) {
-        await api.uploadFile(project.id, file);
-      }
-      // Redirect to the persisted project — nothing disappears on refresh.
-      router.push(`/projects/${project.id}`);
+      // The server dedups by content hash, so re-uploading the same SOP never
+      // creates duplicate data — it just returns the existing project.
+      const { projectId } = await api.upload(files, deriveName(files));
+      router.push(`/projects/${projectId}`);
     } catch (err) {
       setError(
         err instanceof Error
