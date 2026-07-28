@@ -19,13 +19,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { store } from "@/server/store";
 
-const stats = [
-  { label: "SOPs Uploaded", value: "12", icon: FileText },
-  { label: "Scenarios Extracted", value: "48", icon: Layers },
-  { label: "Rules Generated", value: "27", icon: Cpu },
-  { label: "Completed Runs", value: "9", icon: CheckCircle2 },
-];
+// Always render with the current in-memory data (never statically cached).
+export const dynamic = "force-dynamic";
 
 const quickActions = [
   {
@@ -42,13 +39,28 @@ const quickActions = [
   },
 ];
 
-const activity = [
-  { title: "Refund Policy SOP", detail: "9 rules generated", time: "5h ago" },
-  { title: "Employee Onboarding SOP", detail: "4 documents parsed", time: "2d ago" },
-  { title: "Compliance Checks SOP", detail: "12 scenarios extracted", time: "1w ago" },
-];
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 export default function DashboardPage() {
+  const s = store.getStats();
+  const activity = store.getRecentActivity();
+
+  const stats = [
+    { label: "SOPs Uploaded", value: s.sopsUploaded, icon: FileText },
+    { label: "Scenarios Extracted", value: s.scenariosExtracted, icon: Layers },
+    { label: "Rules Generated", value: s.rulesGenerated, icon: Cpu },
+    { label: "Completed Runs", value: s.completedRuns, icon: CheckCircle2 },
+  ];
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -122,23 +134,45 @@ export default function DashboardPage() {
           <CardDescription>Your latest SOP conversions.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          {activity.map((item) => (
-            <div
-              key={item.title}
-              className="flex items-center justify-between rounded-lg px-2 py-3 hover:bg-accent/50"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <FileText className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="text-xs text-muted-foreground">{item.detail}</p>
-                </div>
+          {activity.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-12 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <FileText className="h-6 w-6" />
+              </span>
+              <div>
+                <p className="font-medium">No activity yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Upload your first SOP to get started.
+                </p>
               </div>
-              <Badge variant="secondary">{item.time}</Badge>
+              <Button asChild size="sm">
+                <Link href="/upload">
+                  <Upload className="h-4 w-4" />
+                  Upload SOP
+                </Link>
+              </Button>
             </div>
-          ))}
+          ) : (
+            activity.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between rounded-lg px-2 py-3 hover:bg-accent/50"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{item.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.detail}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="secondary">{relativeTime(item.time)}</Badge>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

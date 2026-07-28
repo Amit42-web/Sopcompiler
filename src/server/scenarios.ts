@@ -44,8 +44,19 @@ function splitSentences(text: string): string[] {
     .filter((s) => s.length > 12);
 }
 
+/** Normalized key used to detect duplicate scenarios. */
+function dedupeKey(condition: string, resolution: string): string {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  return `${norm(condition)}=>${norm(resolution)}`;
+}
+
 export function extractScenarios(sections: SopSection[]): Scenario[] {
   const scenarios: Scenario[] = [];
+  const seen = new Set<string>();
 
   for (const section of sections) {
     for (const sentence of splitSentences(section.text)) {
@@ -56,6 +67,11 @@ export function extractScenarios(sections: SopSection[]): Scenario[] {
         const condition = clean(match.groups.cond);
         const resolution = clean(match.groups.res);
         if (condition.length < 3 || resolution.length < 3) continue;
+
+        // Skip a scenario we've already captured (same condition + resolution).
+        const key = dedupeKey(condition, resolution);
+        if (seen.has(key)) break;
+        seen.add(key);
 
         const group = classifyResolution(resolution);
         let confidence = i === 0 ? 0.9 : 0.7;

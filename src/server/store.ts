@@ -146,6 +146,48 @@ export const store = {
     return data.ruleSets.get(id);
   },
 
+  // --- Dashboard aggregates ------------------------------------------------
+  getStats(): {
+    sopsUploaded: number;
+    scenariosExtracted: number;
+    rulesGenerated: number;
+    completedRuns: number;
+  } {
+    let scenariosExtracted = 0;
+    for (const result of data.pipelineResults.values()) {
+      scenariosExtracted += result.scenarios.length;
+    }
+    let rulesGenerated = 0;
+    for (const ruleSet of data.ruleSets.values()) {
+      rulesGenerated += ruleSet.rules.length;
+    }
+    return {
+      sopsUploaded: data.files.size,
+      scenariosExtracted,
+      rulesGenerated,
+      completedRuns: data.pipelineResults.size,
+    };
+  },
+
+  getRecentActivity(
+    limit = 6
+  ): { id: string; title: string; detail: string; time: string }[] {
+    return [...data.files.values()]
+      .map((file) => {
+        const result = data.pipelineResults.get(file.id);
+        const detail = result
+          ? `${result.scenarios.length} scenario${
+              result.scenarios.length === 1 ? "" : "s"
+            } extracted`
+          : file.status === "error"
+          ? "Upload failed"
+          : "Uploaded";
+        return { id: file.id, title: file.filename, detail, time: file.created_at };
+      })
+      .sort((a, b) => (a.time < b.time ? 1 : -1))
+      .slice(0, limit);
+  },
+
   // --- Members -------------------------------------------------------------
   listMembers(): TeamMember[] {
     return [...data.members.values()];
