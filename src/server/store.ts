@@ -24,6 +24,7 @@ interface StoreData {
   pipelineResults: Map<string, PipelineResult>;
   ruleSets: Map<string, RuleSet>;
   members: Map<string, TeamMember>;
+  defaultProjectId: string;
 }
 
 function createStore(): StoreData {
@@ -34,13 +35,29 @@ function createStore(): StoreData {
     pipelineResults: new Map(),
     ruleSets: new Map(),
     members: new Map(),
+    defaultProjectId: "",
   };
 
-  // Seed the workspace owner.
+  // Seed a single default workspace project so uploads have a home without
+  // the user having to pick one.
+  const workspace: Project = {
+    id: newId("prj"),
+    name: "My Workspace",
+    description: "Default workspace for uploaded SOPs.",
+    status: "draft",
+    file_count: 0,
+    rule_count: 0,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+  data.projects.set(workspace.id, workspace);
+  data.defaultProjectId = workspace.id;
+
+  // Seed the workspace owner (this is you — not a placeholder teammate).
   const owner: TeamMember = {
     id: newId("usr"),
-    name: "Workspace Owner",
-    email: "owner@example.com",
+    name: "You",
+    email: "you@workspace.local",
     role: "owner",
     status: "active",
   };
@@ -75,6 +92,11 @@ export const store = {
     return [...data.projects.values()];
   },
 
+  /** The default workspace project that all uploads attach to. */
+  defaultProject(): Project {
+    return data.projects.get(data.defaultProjectId)!;
+  },
+
   getProject(id: string): Project | undefined {
     return data.projects.get(id);
   },
@@ -105,6 +127,18 @@ export const store = {
 
   listFiles(projectId: string): SopFile[] {
     return [...data.files.values()].filter((f) => f.project_id === projectId);
+  },
+
+  /** All uploaded files across the workspace, newest first. */
+  listAllFiles(): SopFile[] {
+    return [...data.files.values()].sort((a, b) =>
+      a.created_at < b.created_at ? 1 : -1
+    );
+  },
+
+  /** All pipeline results across the workspace. */
+  listAllPipelineResults(): PipelineResult[] {
+    return [...data.pipelineResults.values()];
   },
 
   getFile(id: string): SopFile | undefined {
@@ -196,5 +230,23 @@ export const store = {
   addMember(member: TeamMember): TeamMember {
     data.members.set(member.id, member);
     return member;
+  },
+
+  getMember(id: string): TeamMember | undefined {
+    return data.members.get(id);
+  },
+
+  updateMember(
+    id: string,
+    patch: Partial<Pick<TeamMember, "role" | "status" | "name">>
+  ): TeamMember | undefined {
+    const member = data.members.get(id);
+    if (!member) return undefined;
+    Object.assign(member, patch);
+    return member;
+  },
+
+  removeMember(id: string): boolean {
+    return data.members.delete(id);
   },
 };

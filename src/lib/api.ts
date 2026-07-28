@@ -9,11 +9,11 @@
  */
 
 import type {
-  Project,
   SopFile,
   PipelineResult,
   RuleSet,
   ValidationReport,
+  TeamMember,
 } from "@/lib/types";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -44,24 +44,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ status: string; version: string }>("/api/health"),
 
-  listProjects: () => request<Project[]>("/api/projects"),
-  getProject: (id: string) => request<Project>(`/api/projects/${id}`),
-  createProject: (body: { name: string; description: string }) =>
-    request<Project>("/api/projects", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+  // --- Files (workspace-level) --------------------------------------------
+  listFiles: () => request<SopFile[]>("/api/files"),
 
-  listFiles: (projectId: string) =>
-    request<SopFile[]>(`/api/projects/${projectId}/files`),
-
-  uploadFile: async (projectId: string, file: File) => {
+  uploadFile: async (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(
-      `${API_BASE_URL}/api/projects/${projectId}/files`,
-      { method: "POST", body: form }
-    );
+    const res = await fetch(`${API_BASE_URL}/api/files`, {
+      method: "POST",
+      body: form,
+    });
     if (!res.ok) throw new ApiError(res.status, await res.text());
     return (await res.json()) as SopFile;
   },
@@ -71,8 +63,12 @@ export const api = {
       method: "POST",
     }),
 
-  generateRules: (projectId: string) =>
-    request<RuleSet>(`/api/projects/${projectId}/rules`, { method: "POST" }),
+  getPipelineResult: (fileId: string) =>
+    request<PipelineResult>(`/api/files/${fileId}/pipeline`),
+
+  // --- Rules ---------------------------------------------------------------
+  generateRules: () =>
+    request<RuleSet>("/api/rules/generate", { method: "POST" }),
 
   validateRules: (ruleSetId: string) =>
     request<ValidationReport>(`/api/rules/${ruleSetId}/validate`, {
@@ -81,4 +77,26 @@ export const api = {
 
   exportRulesUrl: (ruleSetId: string) =>
     `${API_BASE_URL}/api/rules/${ruleSetId}/export`,
+
+  // --- Team ----------------------------------------------------------------
+  listTeam: () => request<TeamMember[]>("/api/team"),
+
+  inviteMember: (body: { email: string; name?: string; role: string }) =>
+    request<TeamMember>("/api/team/invite", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateMemberRole: (id: string, role: string) =>
+    request<TeamMember>(`/api/team/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+
+  removeMember: async (id: string) => {
+    const res = await fetch(`${API_BASE_URL}/api/team/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new ApiError(res.status, await res.text());
+  },
 };

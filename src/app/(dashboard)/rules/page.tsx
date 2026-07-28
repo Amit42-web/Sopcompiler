@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/page-header";
-import { RuleBuilder } from "@/components/rules/rule-builder";
-import { sampleRules } from "@/lib/sample-data";
+import { RulesWorkspace } from "@/components/rules/rules-workspace";
 
 export const metadata: Metadata = {
   title: "Rule Builder",
@@ -13,9 +12,9 @@ export default function RulesPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Rule Builder"
-        description="Review, edit, validate, and export your generated Rule Engine JSON."
+        description="Rules generated from your uploaded SOPs — review, edit, validate, and export."
       />
-      <RuleBuilder initialRules={sampleRules} />
+      <RulesWorkspace />
     </div>
   );
 }

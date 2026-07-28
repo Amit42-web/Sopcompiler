@@ -21,8 +21,8 @@ import { newId, nowIso } from "@/server/id";
 const COMPARATORS: [RegExp, RuleOperator][] = [
   [/\b(?:greater than or equal|at least|no less than)\b/i, "greater_than"],
   [/\b(?:less than or equal|at most|no more than|within)\b/i, "less_than"],
-  [/\b(?:greater than|more than|over|above|exceeds?)\b/i, "greater_than"],
-  [/\b(?:less than|fewer than|under|below)\b/i, "less_than"],
+  [/\b(?:greater than|more than|older than|longer than|over|above|exceeds?)\b/i, "greater_than"],
+  [/\b(?:less than|fewer than|younger than|newer than|sooner than|under|below)\b/i, "less_than"],
   [/\b(?:is not|are not|isn't|aren't|not equal)\b/i, "not_equals"],
   [/\b(?:contains?|includes?|has)\b/i, "contains"],
   [/\b(?:is|are|equals?|equal to)\b/i, "equals"],
