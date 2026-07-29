@@ -76,13 +76,20 @@ parse (PDF/DOCX/TXT)   parsing.ts          # Sprint 3
   → scenarios          scenarios.ts        # Sprint 5
   → resolution groups  scenarios.ts        # Sprint 5
   → knowledge base     knowledge-base.ts   # Sprint 6
-  → rules              rules-engine.ts     # Sprint 7
+  → structured rules   extraction.ts       # Sprint 7 (decision-tree, categorized)
   → validate / export  validation.ts, export.ts   # Sprint 9
 ```
 
-`pipeline.ts` orchestrates metadata→sections→scenarios→knowledge-base;
-`rules-engine.ts` turns scenarios into rules; `store.ts` is the in-memory,
-database-shaped persistence layer (held on `globalThis` to survive HMR).
+`pipeline.ts` orchestrates metadata→sections→scenarios→knowledge-base.
+`extraction.ts` turns SOP sections into **structured, Rule Engine–ready rules**:
+IF/ELSE decision trees with nested AND/OR conditions kept verbatim, split into
+categories (business rule / agent obligation / backend action / metadata
+condition), with preconditions, mandatory-vs-conditional obligations,
+transcript validation prompts for agent actions only, and de-duplication into
+reusable rules bound to each triggering scenario. When `ANTHROPIC_API_KEY` is
+set, `llm.extractStructured` performs the full-fidelity extraction with the
+same output shape; the heuristic extractor is the fallback. Persistence goes
+through Prisma (`src/server/ingest.ts` writes, `src/server/queries.ts` reads).
 
 **Key principle:** the pipeline runs entirely on deterministic heuristics with
 **no API key required**. `src/server/llm.ts` is an *optional* enhancer that

@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SopActions } from "@/components/sop/sop-actions";
-import { RuleBuilder } from "@/components/rules/rule-builder";
+import { StructuredRules } from "@/components/rules/structured-rules";
 import { api } from "@/lib/api";
 import type { ProjectDetails } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
@@ -306,13 +306,10 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
 
         {/* Rules */}
         <TabsContent value="rules">
-          {data.rules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No rules generated yet.
-            </p>
-          ) : (
-            <RuleBuilder key={data.id} initialRules={data.rules} />
-          )}
+          <StructuredRules
+            rules={data.structured_rules}
+            metadataConditions={data.metadata_conditions}
+          />
         </TabsContent>
 
         {/* Validation */}

@@ -10,16 +10,20 @@ import { prisma } from "@/server/db";
 import type {
   ActivityItem,
   ActivityType,
+  ConditionNode,
   DashboardStats,
   FileStatus,
   LibraryRow,
+  MetadataCondition,
   Paginated,
   ProjectDetails,
   ProjectStatus,
   ProjectSummary,
   Rule,
+  RuleBinding,
   RuleCondition,
   RuleAction,
+  StructuredRule,
   ValidationReport,
   ValidationIssue,
 } from "@/lib/types";
@@ -258,6 +262,41 @@ function mapRule(r: {
   };
 }
 
+function mapStructuredRule(r: {
+  id: string;
+  name: string;
+  category: string;
+  actionKind: string;
+  obligation: string;
+  branch: string;
+  orderIndex: number;
+  validationPrompt: string | null;
+  preconditions: string;
+  conditionsTree: string;
+  actions: string;
+  appliesTo: string;
+  reusableKey: string;
+  rawText: string;
+}): StructuredRule {
+  const actions = parseJson<RuleAction[]>(r.actions, []);
+  return {
+    id: r.id,
+    reusable_key: r.reusableKey,
+    name: r.name,
+    category: r.category as StructuredRule["category"],
+    action_kind: r.actionKind as StructuredRule["action_kind"],
+    obligation: r.obligation as StructuredRule["obligation"],
+    branch: r.branch as StructuredRule["branch"],
+    order: r.orderIndex,
+    preconditions: parseJson<string[]>(r.preconditions, []),
+    conditions: parseJson<ConditionNode | null>(r.conditionsTree, null),
+    action: actions[0] ?? { type: "noop", target: "" },
+    validation_prompt: r.validationPrompt,
+    applies_to: parseJson<RuleBinding[]>(r.appliesTo, []),
+    raw: r.rawText,
+  };
+}
+
 export async function getProjectDetails(
   id: string
 ): Promise<ProjectDetails | null> {
@@ -294,6 +333,12 @@ export async function getProjectDetails(
   const counts = await countsByFile(project.files.map((f) => f.id));
   const ruleSet = project.ruleSets[0];
   const rules = ruleSet ? ruleSet.rules.map(mapRule) : [];
+  const structuredRules = ruleSet
+    ? ruleSet.rules.map(mapStructuredRule).sort((a, b) => a.order - b.order)
+    : [];
+  const metadataConditions = ruleSet
+    ? parseJson<MetadataCondition[]>(ruleSet.metadataConditions, [])
+    : [];
   const validationRow = ruleSet?.validationReports[0];
   const validation: ValidationReport | null = validationRow
     ? {
@@ -366,6 +411,8 @@ export async function getProjectDetails(
       }))
     ),
     rules,
+    structured_rules: structuredRules,
+    metadata_conditions: metadataConditions,
     validation,
     version_history: project.runs.map((r) => ({
       id: r.id,
@@ -389,4 +436,22 @@ export async function getLatestRules(projectId: string): Promise<Rule[]> {
     include: { rules: { orderBy: { priority: "asc" } } },
   });
   return ruleSet ? ruleSet.rules.map(mapRule) : [];
+}
+
+/** The latest structured rule set + metadata conditions, for rich export. */
+export async function getLatestStructured(projectId: string): Promise<{
+  rules: StructuredRule[];
+  metadata_conditions: MetadataCondition[];
+}> {
+  const ruleSet = await prisma.ruleSet.findFirst({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    include: { rules: { orderBy: { orderIndex: "asc" } } },
+  });
+  return {
+    rules: ruleSet ? ruleSet.rules.map(mapStructuredRule) : [],
+    metadata_conditions: ruleSet
+      ? parseJson<MetadataCondition[]>(ruleSet.metadataConditions, [])
+      : [],
+  };
 }

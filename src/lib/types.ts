@@ -98,6 +98,75 @@ export interface Rule {
   source_scenario_id?: string;
 }
 
+// --- Structured extraction (decision-tree, categorized) --------------------
+
+export type RuleCategory =
+  | "business_rule"
+  | "agent_obligation"
+  | "backend_action"
+  | "metadata_condition";
+
+export type ActionKind = "agent_action" | "backend_action" | "business_rule";
+export type Obligation = "mandatory" | "conditional";
+export type BranchKind = "main" | "exception" | "alternate";
+
+/**
+ * A condition, preserved with its exact SOP wording. Leaves carry a parsed
+ * fact/operator/value for the Rule Engine; groups preserve nested AND/OR/IF.
+ */
+export type ConditionNode =
+  | {
+      type: "leaf";
+      raw: string; // exact text from the SOP
+      fact: string;
+      operator: RuleOperator;
+      value: string | number | boolean;
+    }
+  | { type: "group"; op: "all" | "any"; children: ConditionNode[] };
+
+/** Where a (reusable) rule applies: the triggering scenario + preconditions. */
+export interface RuleBinding {
+  scenario: string;
+  preconditions: string[];
+}
+
+/**
+ * A single extracted, Rule Engine–ready rule. Reusable: identical logic that
+ * recurs across scenarios is stored once and bound to each scenario via
+ * `applies_to`, rather than duplicated.
+ */
+export interface StructuredRule {
+  id: string;
+  reusable_key: string;
+  name: string;
+  category: RuleCategory;
+  action_kind: ActionKind;
+  obligation: Obligation;
+  branch: BranchKind;
+  order: number;
+  preconditions: string[];
+  conditions: ConditionNode | null; // nested, exact
+  action: RuleAction;
+  validation_prompt: string | null; // only for transcript-verifiable agent actions
+  applies_to: RuleBinding[]; // triggering scenarios (reuse)
+  raw: string; // exact SOP statement
+}
+
+export interface MetadataCondition {
+  field: string;
+  operator: RuleOperator;
+  value: string | number | boolean;
+  raw: string;
+}
+
+export interface ExtractionResult {
+  rules: StructuredRule[];
+  metadata_conditions: MetadataCondition[];
+  scenarios_total: number;
+  scenarios_converted: number;
+  complete: boolean; // every scenario produced at least one rule
+}
+
 export interface RuleSet {
   id: string;
   project_id: string;
@@ -231,6 +300,8 @@ export interface ProjectDetails extends ProjectSummary {
   scenarios: Scenario[];
   knowledge_base: KnowledgeEntry[];
   rules: Rule[];
+  structured_rules: StructuredRule[];
+  metadata_conditions: MetadataCondition[];
   validation: ValidationReport | null;
   version_history: ProcessingRunItem[];
 }

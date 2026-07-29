@@ -12,13 +12,13 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/server/db";
 import { parseDocument } from "@/server/parsing";
 import { runPipeline } from "@/server/pipeline";
-import { generateRuleSet } from "@/server/rules-engine";
-import { validateRuleSet } from "@/server/validation";
+import { extractRules } from "@/server/extraction";
+import { extractStructured } from "@/server/llm";
 import type {
   ActivityType,
+  ConditionNode,
   PipelineResult,
-  Rule,
-  RuleSet,
+  RuleCondition,
 } from "@/lib/types";
 
 async function logActivity(
@@ -43,13 +43,6 @@ export async function findDuplicateByHash(hash: string) {
     where: { contentHash: hash },
     orderBy: { createdAt: "desc" },
   });
-}
-
-/** Normalized key for de-duplicating scenarios across a project. */
-function scenarioKey(condition: string, resolution: string): string {
-  const norm = (s: string) =>
-    s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  return `${norm(condition)}=>${norm(resolution)}`;
 }
 
 /** Persist the pipeline output for a file (metadata, sections, scenarios, KB). */
@@ -111,79 +104,105 @@ async function persistPipeline(fileId: string, result: PipelineResult) {
   }
 }
 
+/** Flatten a nested condition tree to leaf conditions for the flat engine. */
+function flattenConditions(node: ConditionNode | null): RuleCondition[] {
+  if (!node) return [];
+  if (node.type === "leaf")
+    return [{ fact: node.fact, operator: node.operator, value: node.value }];
+  return node.children.flatMap(flattenConditions);
+}
+
 /**
- * Regenerate the project's rule set from every processed file, replacing any
- * previous rule set so counts always reflect current state. Also persists a
- * fresh validation report. Returns the number of rules generated.
+ * Regenerate the project's rules from every processed file using the
+ * structured decision-tree extractor, replacing any previous rule set. Rules
+ * are de-duplicated into reusable definitions bound to each scenario. Also
+ * persists metadata condition nodes and a completeness validation report.
  */
 export async function regenerateProjectRules(projectId: string): Promise<{
   ruleSetId: string | null;
   ruleCount: number;
   valid: boolean;
 }> {
-  const allScenarios = await prisma.scenario.findMany({
+  const sectionRows = await prisma.section.findMany({
     where: { file: { projectId } },
-    orderBy: { confidence: "desc" },
+    orderBy: [{ fileId: "asc" }, { order: "asc" }],
   });
 
-  // De-duplicate across the whole project so the same condition → resolution
-  // (even if it appears in multiple files) yields a single rule.
-  const seen = new Set<string>();
-  const scenarios = allScenarios.filter((s) => {
-    const key = scenarioKey(s.condition, s.resolution);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  if (scenarios.length === 0) {
+  if (sectionRows.length === 0) {
     await prisma.ruleSet.deleteMany({ where: { projectId } });
     return { ruleSetId: null, ruleCount: 0, valid: true };
   }
 
-  // Build a minimal PipelineResult carrying just the scenarios rule generation
-  // needs.
-  const pseudoResult: PipelineResult = {
-    file_id: projectId,
-    metadata: { tags: [] },
-    sections: [],
-    scenarios: scenarios.map((s) => ({
-      id: s.id,
-      section_id: s.sectionRef ?? "",
-      condition: s.condition,
-      resolution: s.resolution,
-      resolution_group: s.resolutionGroup,
-      confidence: s.confidence,
-    })),
-    knowledge_base: [],
-  };
+  const sections = sectionRows.map((s) => ({
+    id: s.id,
+    title: s.title,
+    level: s.level,
+    text: s.text,
+  }));
 
-  const ruleSet: RuleSet = generateRuleSet(projectId, [pseudoResult]);
-  const report = validateRuleSet(ruleSet);
+  const extraction = extractRules(sections);
 
-  // Replace previous rule sets for this project.
+  // Full-fidelity LLM extraction when configured; heuristic is the fallback.
+  const llmRules = await extractStructured(sections);
+  if (llmRules && llmRules.length > 0) {
+    extraction.rules = llmRules;
+    extraction.scenarios_converted = extraction.scenarios_total;
+    extraction.complete = true;
+  }
+
+  // Completeness / structural validation.
+  const issues = [] as { severity: string; code: string; message: string }[];
+  if (!extraction.complete) {
+    issues.push({
+      severity: "warning",
+      code: "INCOMPLETE_EXTRACTION",
+      message: `${extraction.scenarios_total - extraction.scenarios_converted} of ${extraction.scenarios_total} scenarios produced no rules.`,
+    });
+  }
+  for (const r of extraction.rules) {
+    if (r.action_kind === "agent_action" && !r.validation_prompt) {
+      issues.push({
+        severity: "warning",
+        code: "MISSING_VALIDATION_PROMPT",
+        message: `Agent obligation "${r.name}" has no validation prompt.`,
+      });
+    }
+  }
+  const valid = extraction.complete && !issues.some((i) => i.severity === "error");
+
   await prisma.ruleSet.deleteMany({ where: { projectId } });
   const created = await prisma.ruleSet.create({
     data: {
       projectId,
-      name: ruleSet.name,
-      version: ruleSet.version,
+      name: "Extracted rule set",
+      version: "1.0.0",
+      metadataConditions: JSON.stringify(extraction.metadata_conditions),
       rules: {
-        create: ruleSet.rules.map((r: Rule) => ({
+        create: extraction.rules.map((r) => ({
           name: r.name,
-          description: r.description,
-          priority: r.priority,
-          enabled: r.enabled,
-          conditions: JSON.stringify(r.all),
-          actions: JSON.stringify(r.actions),
-          sourceScenario: r.source_scenario_id,
+          description: r.raw,
+          priority: Math.round(r.order),
+          enabled: true,
+          conditions: JSON.stringify(flattenConditions(r.conditions)),
+          actions: JSON.stringify([r.action]),
+          category: r.category,
+          actionKind: r.action_kind,
+          obligation: r.obligation,
+          branch: r.branch,
+          orderIndex: Math.round(r.order),
+          validationPrompt: r.validation_prompt,
+          preconditions: JSON.stringify(r.preconditions),
+          conditionsTree: JSON.stringify(r.conditions),
+          appliesTo: JSON.stringify(r.applies_to),
+          reusableKey: r.reusable_key,
+          rawText: r.raw,
         })),
       },
       validationReports: {
         create: {
-          valid: report.valid,
-          checkedRules: report.checked_rules,
-          issues: JSON.stringify(report.issues),
+          valid,
+          checkedRules: extraction.rules.length,
+          issues: JSON.stringify(issues),
         },
       },
     },
@@ -191,8 +210,8 @@ export async function regenerateProjectRules(projectId: string): Promise<{
 
   return {
     ruleSetId: created.id,
-    ruleCount: ruleSet.rules.length,
-    valid: report.valid,
+    ruleCount: extraction.rules.length,
+    valid,
   };
 }
 

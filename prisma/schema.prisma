@@ -126,11 +126,12 @@ model KnowledgeEntry {
 }
 
 model RuleSet {
-  id        String   @id @default(cuid())
-  projectId String
-  name      String   @default("Generated rule set")
-  version   String   @default("1.0.0")
-  createdAt DateTime @default(now())
+  id                 String   @id @default(cuid())
+  projectId          String
+  name               String   @default("Generated rule set")
+  version            String   @default("1.0.0")
+  metadataConditions String   @default("[]") // JSON MetadataCondition[]
+  createdAt          DateTime @default(now())
 
   project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rules             Rule[]
@@ -146,9 +147,22 @@ model Rule {
   description    String  @default("")
   priority       Int     @default(50)
   enabled        Boolean @default(true)
-  conditions     String  @default("[]") // JSON RuleCondition[]
+  conditions     String  @default("[]") // JSON RuleCondition[] (flattened leaves)
   actions        String  @default("[]") // JSON RuleAction[]
   sourceScenario String?
+
+  // Structured extraction fields
+  category         String  @default("business_rule") // business_rule | agent_obligation | backend_action | metadata_condition
+  actionKind       String  @default("business_rule") // agent_action | backend_action | business_rule
+  obligation       String  @default("mandatory") // mandatory | conditional
+  branch           String  @default("main") // main | exception | alternate
+  orderIndex       Int     @default(0)
+  validationPrompt String?
+  preconditions    String  @default("[]") // JSON string[]
+  conditionsTree   String  @default("null") // JSON ConditionNode | null
+  appliesTo        String  @default("[]") // JSON RuleBinding[]
+  reusableKey      String  @default("")
+  rawText          String  @default("")
 
   ruleSet RuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
 
