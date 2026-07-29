@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { SopActions } from "@/components/sop/sop-actions";
 import { StructuredRules } from "@/components/rules/structured-rules";
+import { RuleJson } from "@/components/rules/rule-json";
 import { api } from "@/lib/api";
 import type { ProjectDetails } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
@@ -137,7 +138,10 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             <TabsTrigger value="kb">
               Knowledge Base ({data.knowledge_base.length})
             </TabsTrigger>
-            <TabsTrigger value="rules">Rules ({data.rules.length})</TabsTrigger>
+            <TabsTrigger value="rules">
+              Rules ({data.structured_rules.length})
+            </TabsTrigger>
+            <TabsTrigger value="json">JSON</TabsTrigger>
             <TabsTrigger value="validation">Validation</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
@@ -307,6 +311,15 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
         {/* Rules */}
         <TabsContent value="rules">
           <StructuredRules
+            rules={data.structured_rules}
+            metadataConditions={data.metadata_conditions}
+          />
+        </TabsContent>
+
+        {/* Rule Engine JSON */}
+        <TabsContent value="json">
+          <RuleJson
+            projectName={data.name}
             rules={data.structured_rules}
             metadataConditions={data.metadata_conditions}
           />
