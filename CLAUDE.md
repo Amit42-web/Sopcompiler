@@ -16,12 +16,12 @@ service.
 
 ### Persistence
 
-- **Zero-config by default:** `prisma/schema.prisma` uses **SQLite** (a local
-  file), and `.env` ships a committed `DATABASE_URL="file:./dev.db"`, so the app
-  runs and persists with no database server. For production/scale, switch the
-  datasource `provider` to `postgresql` and override `DATABASE_URL` in
-  `.env.local` — the schema is normalized and portable (enum-like fields are
-  validated strings; list/JSON fields are stored as JSON strings).
+- **PostgreSQL via Prisma.** `prisma/schema.prisma` uses `provider =
+  "postgresql"`. Local dev: `docker compose up -d` starts Postgres matching the
+  committed `.env` default (`localhost:5432`). In production (Vercel etc.) set
+  `DATABASE_URL` in the platform env — it overrides `.env`.
+- The schema is normalized and portable: enum-like fields are validated
+  strings and list/JSON fields are stored as JSON strings.
 - Normalized tables: User, Project, SopFile, Metadata, Section, Scenario,
   KnowledgeEntry, RuleSet, Rule, ValidationReport, ProcessingRun, Activity.
 - `src/server/db.ts` is the Prisma client singleton (cached on `globalThis`).

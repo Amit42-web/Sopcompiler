@@ -1,18 +1,19 @@
-// RuleForge AI — persistent data model.
+// RuleForge AI — persistent data model (PostgreSQL).
 //
-// Defaults to a zero-config SQLite file (works with no database server), so
-// the app runs and persists out of the box. For production/scale, switch the
-// `provider` to "postgresql" and point DATABASE_URL at your Postgres — the
-// model is normalized and portable. Enum-like fields are stored as validated
-// strings and list/JSON fields as JSON strings for cross-database portability.
+// The model is normalized and portable: enum-like fields are stored as
+// validated strings and list/JSON fields as JSON strings, so it runs on any
+// SQL database. PostgreSQL is used for deployment (Vercel, etc.); for local
+// development, `docker compose up -d` starts a matching Postgres.
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  // "native" covers local dev; the rhel target covers Vercel's runtime.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

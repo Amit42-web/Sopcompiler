@@ -1,29 +1,33 @@
 -- CreateTable
 CREATE TABLE "User" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'viewer',
     "status" TEXT NOT NULL DEFAULT 'active',
-    "invitedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "invitedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Project" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL DEFAULT '',
     "department" TEXT,
     "status" TEXT NOT NULL DEFAULT 'draft',
     "version" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Project_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "SopFile" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "filename" TEXT NOT NULL,
     "contentType" TEXT NOT NULL,
@@ -34,14 +38,15 @@ CREATE TABLE "SopFile" (
     "charCount" INTEGER,
     "contentHash" TEXT NOT NULL DEFAULT '',
     "rawText" TEXT NOT NULL DEFAULT '',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "SopFile_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SopFile_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Metadata" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "fileId" TEXT NOT NULL,
     "title" TEXT,
     "department" TEXT,
@@ -49,55 +54,60 @@ CREATE TABLE "Metadata" (
     "effectiveDate" TEXT,
     "owner" TEXT,
     "tags" TEXT NOT NULL DEFAULT '[]',
-    CONSTRAINT "Metadata_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+
+    CONSTRAINT "Metadata_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Section" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "fileId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "level" INTEGER NOT NULL DEFAULT 1,
     "text" TEXT NOT NULL,
     "order" INTEGER NOT NULL DEFAULT 0,
-    CONSTRAINT "Section_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+
+    CONSTRAINT "Section_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Scenario" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "fileId" TEXT NOT NULL,
     "sectionRef" TEXT,
     "condition" TEXT NOT NULL,
     "resolution" TEXT NOT NULL,
     "resolutionGroup" TEXT NOT NULL DEFAULT 'Other',
-    "confidence" REAL NOT NULL DEFAULT 0.5,
-    CONSTRAINT "Scenario_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+
+    CONSTRAINT "Scenario_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "KnowledgeEntry" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "fileId" TEXT NOT NULL,
     "term" TEXT NOT NULL,
     "definition" TEXT NOT NULL,
     "occurrences" INTEGER NOT NULL DEFAULT 1,
-    CONSTRAINT "KnowledgeEntry_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+
+    CONSTRAINT "KnowledgeEntry_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "RuleSet" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "name" TEXT NOT NULL DEFAULT 'Generated rule set',
     "version" TEXT NOT NULL DEFAULT '1.0.0',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "RuleSet_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RuleSet_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Rule" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "ruleSetId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL DEFAULT '',
@@ -106,23 +116,25 @@ CREATE TABLE "Rule" (
     "conditions" TEXT NOT NULL DEFAULT '[]',
     "actions" TEXT NOT NULL DEFAULT '[]',
     "sourceScenario" TEXT,
-    CONSTRAINT "Rule_ruleSetId_fkey" FOREIGN KEY ("ruleSetId") REFERENCES "RuleSet" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+
+    CONSTRAINT "Rule_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "ValidationReport" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "ruleSetId" TEXT NOT NULL,
     "valid" BOOLEAN NOT NULL,
     "checkedRules" INTEGER NOT NULL,
     "issues" TEXT NOT NULL DEFAULT '[]',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ValidationReport_ruleSetId_fkey" FOREIGN KEY ("ruleSetId") REFERENCES "RuleSet" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ValidationReport_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "ProcessingRun" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "fileId" TEXT NOT NULL,
     "success" BOOLEAN NOT NULL,
@@ -130,21 +142,21 @@ CREATE TABLE "ProcessingRun" (
     "scenarios" INTEGER NOT NULL DEFAULT 0,
     "rules" INTEGER NOT NULL DEFAULT 0,
     "version" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ProcessingRun_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "ProcessingRun_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ProcessingRun_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Activity" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "message" TEXT NOT NULL,
     "projectId" TEXT,
     "fileId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Activity_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Activity_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Activity_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -197,3 +209,39 @@ CREATE INDEX "Activity_createdAt_idx" ON "Activity"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "Activity_projectId_idx" ON "Activity"("projectId");
+
+-- AddForeignKey
+ALTER TABLE "SopFile" ADD CONSTRAINT "SopFile_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Metadata" ADD CONSTRAINT "Metadata_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Section" ADD CONSTRAINT "Section_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Scenario" ADD CONSTRAINT "Scenario_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "KnowledgeEntry" ADD CONSTRAINT "KnowledgeEntry_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RuleSet" ADD CONSTRAINT "RuleSet_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Rule" ADD CONSTRAINT "Rule_ruleSetId_fkey" FOREIGN KEY ("ruleSetId") REFERENCES "RuleSet"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ValidationReport" ADD CONSTRAINT "ValidationReport_ruleSetId_fkey" FOREIGN KEY ("ruleSetId") REFERENCES "RuleSet"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProcessingRun" ADD CONSTRAINT "ProcessingRun_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProcessingRun" ADD CONSTRAINT "ProcessingRun_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Activity" ADD CONSTRAINT "Activity_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Activity" ADD CONSTRAINT "Activity_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "SopFile"("id") ON DELETE SET NULL ON UPDATE CASCADE;

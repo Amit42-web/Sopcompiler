@@ -43,27 +43,36 @@ SQLite by default, PostgreSQL-ready:
   with a constant number of queries (no N+1), so a workspace scales to thousands
   of SOPs.
 
-## Quick start (zero config)
+## Quick start (local)
 
 ```bash
-npm install     # runs prisma generate
-npm run dev     # runs migrations, then starts http://localhost:3000
+docker compose up -d    # Postgres on localhost:5432 (matches .env)
+npm install             # runs prisma generate
+npm run dev             # applies migrations, then http://localhost:3000
 ```
 
-That's it — the app uses a local **SQLite** file (`prisma/dev.db`, created
-automatically), so it runs and **persists with no database server**. Uploaded
-SOPs and all their artifacts survive restarts.
+Uploaded SOPs and all their artifacts are stored in Postgres and survive
+restarts. No Docker? Point `DATABASE_URL` (in `.env.local`) at any Postgres.
 
-**Optional configuration** (put in `.env.local`, which is git-ignored):
+**Optional configuration** (put secrets in `.env.local`, which is git-ignored):
 
-- **PostgreSQL** for production/scale — set `DATABASE_URL` to your Postgres URL
-  and change the datasource `provider` in `prisma/schema.prisma` to
-  `postgresql`, then `npm run db:migrate`.
 - **Invitation emails** — set `SMTP_URL` (or `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/
   `SMTP_PASS`) and `MAIL_FROM`; invitations are then emailed to the invitee.
 - **LLM enhancer** — set `ANTHROPIC_API_KEY`.
 
 See `.env.example` for all options.
+
+## Deploying to Vercel
+
+1. Create a Postgres database — Vercel **Storage → Create Database → Postgres**
+   (or Neon/Supabase). This sets `DATABASE_URL` in your project's env vars.
+2. If your provider gives a *pooled* URL, also set a direct one for migrations,
+   or run `npx prisma migrate deploy` once against the direct URL.
+3. Redeploy. The build runs `prisma migrate deploy` to create the tables, then
+   `next build`.
+
+> **Note:** SQLite/file databases cannot be used on Vercel — its filesystem is
+> ephemeral. PostgreSQL is required for any serverless deployment.
 
 ## Sprint map
 
