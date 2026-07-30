@@ -98,9 +98,9 @@ dependency), and it degrades back to the heuristic result on any error
 (offline, rate limit, parse failure). Never make the pipeline hard-depend on
 the LLM.
 
-Parsing uses `unpdf` (PDF) and `mammoth` (DOCX), imported dynamically inside
-`parsing.ts`. Routes that parse or run the pipeline set
-`export const runtime = "nodejs"`.
+Parsing uses `unpdf` (PDF), `mammoth` (Word/DOCX) and `exceljs` (Excel/XLSX),
+imported dynamically inside `parsing.ts`; CSV/TXT/MD are read as text. Routes
+that parse or run the pipeline set `export const runtime = "nodejs"`.
 
 ## Directory layout
 

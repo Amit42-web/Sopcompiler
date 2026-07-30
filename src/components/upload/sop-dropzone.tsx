@@ -6,7 +6,7 @@ import { UploadCloud, File as FileIcon, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-const ACCEPTED = ".pdf,.doc,.docx,.txt,.md";
+const ACCEPTED = ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -95,7 +95,7 @@ export function SopDropzone({
         <div>
           <p className="font-medium">Drag &amp; drop your SOP documents here</p>
           <p className="text-sm text-muted-foreground">
-            or click to browse — PDF, DOC, DOCX, TXT, MD
+            or click to browse — PDF, Word, Excel, CSV, TXT
           </p>
         </div>
         <input

@@ -82,13 +82,23 @@ export async function POST(req: Request) {
     }
   }
 
-  const projectId = targetProjectId ?? dupProjectId;
+  // If a project was created but every document failed to parse, remove the
+  // now-empty project so we don't leave an empty shell behind.
+  if (created === 0 && targetProjectId) {
+    await prisma.project.delete({ where: { id: targetProjectId } }).catch(() => {});
+    targetProjectId = null;
+  }
 
-  // Nothing new and nothing to reuse → surface the errors.
+  const projectId = created > 0 ? targetProjectId : dupProjectId;
+
+  // Nothing new and nothing to reuse → surface the parse errors.
   if (!projectId) {
-    // If a project was created but all files failed, clean it up.
     return NextResponse.json(
-      { detail: errors.join("; ") || "No documents could be processed." },
+      {
+        detail:
+          errors.join("; ") ||
+          "No documents could be processed. Supported: PDF, Word, Excel, CSV, TXT.",
+      },
       { status: 415 }
     );
   }
