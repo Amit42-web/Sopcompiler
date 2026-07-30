@@ -88,8 +88,17 @@ condition), with preconditions, mandatory-vs-conditional obligations,
 transcript validation prompts for agent actions only, and de-duplication into
 reusable rules bound to each triggering scenario. When `ANTHROPIC_API_KEY` is
 set, `llm.extractStructured` performs the full-fidelity extraction with the
-same output shape; the heuristic extractor is the fallback. Persistence goes
-through Prisma (`src/server/ingest.ts` writes, `src/server/queries.ts` reads).
+same output shape; the heuristic extractor is the fallback.
+
+`rule-engine.ts` then compiles the extracted rules into an executable **Rule
+Engine decision tree**: typed blocks (Attribute → Condition → Validate Info /
+Prompt → Response) with YES/NO/NA routing, per the Rule Engine knowledge base.
+Metadata → Attribute/Condition; mandatory agent communications → Validate Info;
+subjective transcript checks → Prompt; every branch ends in a Response. When a
+key is set, `llm.buildRuleEngineTree` builds the tree directly from the SOP with
+the knowledge base as its system prompt. The tree is the primary export (JSON
+tab / Download Rule JSON). Persistence goes through Prisma
+(`src/server/ingest.ts` writes, `src/server/queries.ts` reads).
 
 **Key principle:** the pipeline runs entirely on deterministic heuristics with
 **no API key required**. `src/server/llm.ts` is an *optional* enhancer that

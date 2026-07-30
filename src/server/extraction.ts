@@ -36,6 +36,8 @@ const AGENT_VERBS = [
   "offer", "disclose", "state", "apologize", "apologise", "acknowledge",
   "read", "explain", "probe", "request", "collect", "capture", "repeat",
   "reassure", "thank", "clarify", "advise", "remind", "welcome", "notify",
+  "share", "educate", "provide", "guide", "walk", "help", "assure",
+  "communicate", "set", "update", "check", "ensure", "highlight", "answer",
 ];
 
 const BACKEND_VERBS = [

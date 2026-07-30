@@ -320,6 +320,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
         <TabsContent value="json">
           <RuleJson
             projectName={data.name}
+            engineTree={data.engine_tree}
             rules={data.structured_rules}
             metadataConditions={data.metadata_conditions}
           />

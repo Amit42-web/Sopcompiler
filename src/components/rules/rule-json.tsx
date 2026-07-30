@@ -5,30 +5,38 @@ import { Copy, Check, Download, Braces } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { MetadataCondition, StructuredRule } from "@/lib/types";
+import type {
+  MetadataCondition,
+  RuleEngineTree,
+  StructuredRule,
+} from "@/lib/types";
 
-/** Build the Rule Engine–ready JSON payload from extracted rules. */
+/** Build the Rule Engine JSON payload: the decision tree plus reference data. */
 export function buildRuleEngineJson(
   name: string,
+  engineTree: RuleEngineTree | null,
   rules: StructuredRule[],
   metadataConditions: MetadataCondition[]
 ) {
-  return {
-    name: name || "Extracted rule set",
+  const tree = engineTree ?? {
+    name: name || "Rule Engine",
     version: "1.0.0",
+    root: null,
+    blocks: [],
+  };
+  return {
+    ...tree,
     generated_at: new Date().toISOString(),
     metadata_conditions: metadataConditions,
-    rules: rules.map((r) => ({
+    extracted_rules: rules.map((r) => ({
       id: r.id,
       name: r.name,
       category: r.category,
       action_kind: r.action_kind,
       obligation: r.obligation,
       branch: r.branch,
-      order: r.order,
       preconditions: r.preconditions,
       conditions: r.conditions,
-      action: r.action,
       validation_prompt: r.validation_prompt,
       applies_to: r.applies_to,
       source_text: r.raw,
@@ -38,10 +46,12 @@ export function buildRuleEngineJson(
 
 export function RuleJson({
   projectName,
+  engineTree,
   rules,
   metadataConditions,
 }: {
   projectName: string;
+  engineTree: RuleEngineTree | null;
   rules: StructuredRule[];
   metadataConditions: MetadataCondition[];
 }) {
@@ -50,11 +60,11 @@ export function RuleJson({
   const json = useMemo(
     () =>
       JSON.stringify(
-        buildRuleEngineJson(projectName, rules, metadataConditions),
+        buildRuleEngineJson(projectName, engineTree, rules, metadataConditions),
         null,
         2
       ),
-    [projectName, rules, metadataConditions]
+    [projectName, engineTree, rules, metadataConditions]
   );
 
   async function copy() {
@@ -77,7 +87,7 @@ export function RuleJson({
     URL.revokeObjectURL(url);
   }
 
-  if (rules.length === 0) {
+  if (rules.length === 0 && !(engineTree && engineTree.blocks.length > 0)) {
     return (
       <p className="text-sm text-muted-foreground">
         No rules extracted yet — upload an SOP to generate Rule Engine JSON.

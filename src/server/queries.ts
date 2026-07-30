@@ -23,6 +23,7 @@ import type {
   RuleBinding,
   RuleCondition,
   RuleAction,
+  RuleEngineTree,
   StructuredRule,
   ValidationReport,
   ValidationIssue,
@@ -339,6 +340,9 @@ export async function getProjectDetails(
   const metadataConditions = ruleSet
     ? parseJson<MetadataCondition[]>(ruleSet.metadataConditions, [])
     : [];
+  const engineTree = ruleSet
+    ? parseJson<RuleEngineTree | null>(ruleSet.engineTree, null)
+    : null;
   const validationRow = ruleSet?.validationReports[0];
   const validation: ValidationReport | null = validationRow
     ? {
@@ -413,6 +417,7 @@ export async function getProjectDetails(
     rules,
     structured_rules: structuredRules,
     metadata_conditions: metadataConditions,
+    engine_tree: engineTree,
     validation,
     version_history: project.runs.map((r) => ({
       id: r.id,
@@ -438,10 +443,11 @@ export async function getLatestRules(projectId: string): Promise<Rule[]> {
   return ruleSet ? ruleSet.rules.map(mapRule) : [];
 }
 
-/** The latest structured rule set + metadata conditions, for rich export. */
+/** The latest structured rule set + metadata conditions + engine tree. */
 export async function getLatestStructured(projectId: string): Promise<{
   rules: StructuredRule[];
   metadata_conditions: MetadataCondition[];
+  engine_tree: RuleEngineTree | null;
 }> {
   const ruleSet = await prisma.ruleSet.findFirst({
     where: { projectId },
@@ -453,5 +459,8 @@ export async function getLatestStructured(projectId: string): Promise<{
     metadata_conditions: ruleSet
       ? parseJson<MetadataCondition[]>(ruleSet.metadataConditions, [])
       : [],
+    engine_tree: ruleSet
+      ? parseJson<RuleEngineTree | null>(ruleSet.engineTree, null)
+      : null,
   };
 }

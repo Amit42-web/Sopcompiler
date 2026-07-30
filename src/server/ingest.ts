@@ -13,7 +13,8 @@ import { prisma } from "@/server/db";
 import { parseDocument } from "@/server/parsing";
 import { runPipeline } from "@/server/pipeline";
 import { extractRules } from "@/server/extraction";
-import { extractStructured } from "@/server/llm";
+import { extractStructured, buildRuleEngineTree } from "@/server/llm";
+import { buildDecisionTree } from "@/server/rule-engine";
 import type {
   ActivityType,
   ConditionNode,
@@ -140,6 +141,12 @@ export async function regenerateProjectRules(projectId: string): Promise<{
     text: s.text,
   }));
 
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { name: true },
+  });
+  const projectName = project?.name ?? "Rule Engine";
+
   const extraction = extractRules(sections);
 
   // Full-fidelity LLM extraction when configured; heuristic is the fallback.
@@ -149,6 +156,12 @@ export async function regenerateProjectRules(projectId: string): Promise<{
     extraction.scenarios_converted = extraction.scenarios_total;
     extraction.complete = true;
   }
+
+  // Build the Rule Engine decision tree (LLM from the SOP if configured,
+  // otherwise deterministically from the extracted rules).
+  const engineTree =
+    (await buildRuleEngineTree(projectName, sections)) ??
+    buildDecisionTree(projectName, extraction.rules);
 
   // Completeness / structural validation.
   const issues = [] as { severity: string; code: string; message: string }[];
@@ -177,6 +190,7 @@ export async function regenerateProjectRules(projectId: string): Promise<{
       name: "Extracted rule set",
       version: "1.0.0",
       metadataConditions: JSON.stringify(extraction.metadata_conditions),
+      engineTree: JSON.stringify(engineTree),
       rules: {
         create: extraction.rules.map((r) => ({
           name: r.name,

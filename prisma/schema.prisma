@@ -131,6 +131,7 @@ model RuleSet {
   name               String   @default("Generated rule set")
   version            String   @default("1.0.0")
   metadataConditions String   @default("[]") // JSON MetadataCondition[]
+  engineTree         String   @default("null") // JSON RuleEngineTree
   createdAt          DateTime @default(now())
 
   project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)

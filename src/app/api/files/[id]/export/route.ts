@@ -18,27 +18,24 @@ export async function GET(
     });
   }
 
-  const { rules, metadata_conditions } = await getLatestStructured(
+  const { rules, metadata_conditions, engine_tree } = await getLatestStructured(
     file.projectId
   );
 
-  // Rule Engine–ready payload: categorized, with parent scenarios, nested
-  // conditions, preconditions, obligations, and agent validation prompts.
+  // Primary output is the executable Rule Engine decision tree. The structured
+  // rules and metadata conditions are included for reference.
   const payload = {
-    name: "Extracted rule set",
-    version: "1.0.0",
+    ...(engine_tree ?? { name: "Rule Engine", version: "1.0.0", root: null, blocks: [] }),
     metadata_conditions,
-    rules: rules.map((r) => ({
+    extracted_rules: rules.map((r) => ({
       id: r.id,
       name: r.name,
       category: r.category,
       action_kind: r.action_kind,
       obligation: r.obligation,
       branch: r.branch,
-      order: r.order,
       preconditions: r.preconditions,
       conditions: r.conditions,
-      action: r.action,
       validation_prompt: r.validation_prompt,
       applies_to: r.applies_to,
       source_text: r.raw,

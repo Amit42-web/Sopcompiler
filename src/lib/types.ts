@@ -167,6 +167,44 @@ export interface ExtractionResult {
   complete: boolean; // every scenario produced at least one rule
 }
 
+// --- Rule Engine decision tree (block model) -------------------------------
+
+export type BlockType =
+  | "attribute" // read call metadata
+  | "condition" // evaluate one attribute (YES/NO/NA)
+  | "validate_info" // did the agent communicate a mandatory fact
+  | "prompt" // AI judgement of transcript quality
+  | "moment" // restrict evaluation to a call stage
+  | "response"; // terminal outcome
+
+export interface RuleEngineBlock {
+  id: string;
+  type: BlockType;
+  label: string;
+  // attribute / condition
+  attribute?: string;
+  operator?: RuleOperator;
+  value?: string | number | boolean;
+  // validate_info / prompt
+  prompt?: string;
+  // moment
+  moment?: string;
+  // response
+  response?: string;
+  // routing (branching blocks use yes/no/na; linear blocks use next)
+  yes?: string | null;
+  no?: string | null;
+  na?: string | null;
+  next?: string | null;
+}
+
+export interface RuleEngineTree {
+  name: string;
+  version: string;
+  root: string | null; // entry block id
+  blocks: RuleEngineBlock[];
+}
+
 export interface RuleSet {
   id: string;
   project_id: string;
@@ -302,6 +340,7 @@ export interface ProjectDetails extends ProjectSummary {
   rules: Rule[];
   structured_rules: StructuredRule[];
   metadata_conditions: MetadataCondition[];
+  engine_tree: RuleEngineTree | null;
   validation: ValidationReport | null;
   version_history: ProcessingRunItem[];
 }
