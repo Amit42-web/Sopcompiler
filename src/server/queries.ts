@@ -13,6 +13,7 @@ import type {
   ConditionNode,
   DashboardStats,
   FileStatus,
+  KnowledgeGraph,
   LibraryRow,
   MetadataCondition,
   Paginated,
@@ -343,6 +344,9 @@ export async function getProjectDetails(
   const engineTree = ruleSet
     ? parseJson<RuleEngineTree | null>(ruleSet.engineTree, null)
     : null;
+  const knowledgeGraph = ruleSet
+    ? parseJson<KnowledgeGraph | null>(ruleSet.knowledgeGraph, null)
+    : null;
   const validationRow = ruleSet?.validationReports[0];
   const validation: ValidationReport | null = validationRow
     ? {
@@ -417,6 +421,7 @@ export async function getProjectDetails(
     rules,
     structured_rules: structuredRules,
     metadata_conditions: metadataConditions,
+    knowledge_graph: knowledgeGraph,
     engine_tree: engineTree,
     validation,
     version_history: project.runs.map((r) => ({

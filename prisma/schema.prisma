@@ -131,6 +131,7 @@ model RuleSet {
   name               String   @default("Generated rule set")
   version            String   @default("1.0.0")
   metadataConditions String   @default("[]") // JSON MetadataCondition[]
+  knowledgeGraph     String   @default("null") // JSON KnowledgeGraph
   engineTree         String   @default("null") // JSON RuleEngineTree
   createdAt          DateTime @default(now())
 

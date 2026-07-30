@@ -205,6 +205,41 @@ export interface RuleEngineTree {
   blocks: RuleEngineBlock[];
 }
 
+// --- Knowledge graph (SOP → Knowledge Graph → Rule Engine) -----------------
+
+export type GraphNodeKind =
+  | "scenario"
+  | "metadata"
+  | "decision"
+  | "customer_communication"
+  | "system_action"
+  | "ai_evaluation"
+  | "response";
+
+export interface GraphNode {
+  id: string;
+  kind: GraphNodeKind;
+  label: string;
+  scenario?: string; // owning scenario (for non-scenario nodes)
+  attribute?: string;
+  operator?: RuleOperator;
+  value?: string | number | boolean;
+  prompt?: string;
+  obligation?: Obligation;
+  raw?: string;
+}
+
+export interface GraphEdge {
+  from: string;
+  to: string;
+  type: string; // decides | communicates | acts | evaluates | responds
+}
+
+export interface KnowledgeGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 export interface RuleSet {
   id: string;
   project_id: string;
@@ -340,6 +375,7 @@ export interface ProjectDetails extends ProjectSummary {
   rules: Rule[];
   structured_rules: StructuredRule[];
   metadata_conditions: MetadataCondition[];
+  knowledge_graph: KnowledgeGraph | null;
   engine_tree: RuleEngineTree | null;
   validation: ValidationReport | null;
   version_history: ProcessingRunItem[];

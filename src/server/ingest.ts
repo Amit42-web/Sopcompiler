@@ -14,7 +14,8 @@ import { parseDocument } from "@/server/parsing";
 import { runPipeline } from "@/server/pipeline";
 import { extractRules } from "@/server/extraction";
 import { extractStructured, buildRuleEngineTree } from "@/server/llm";
-import { buildDecisionTree } from "@/server/rule-engine";
+import { buildKnowledgeGraph } from "@/server/knowledge-graph";
+import { compileGraphToTree } from "@/server/rule-engine";
 import type {
   ActivityType,
   ConditionNode,
@@ -157,11 +158,15 @@ export async function regenerateProjectRules(projectId: string): Promise<{
     extraction.complete = true;
   }
 
-  // Build the Rule Engine decision tree (LLM from the SOP if configured,
-  // otherwise deterministically from the extracted rules).
+  // SOP → Knowledge Graph → Rule Engine. The graph identifies scenarios,
+  // metadata, decisions, communication, system actions, AI evaluations and
+  // responses; the compiler applies the architectural rules to produce the
+  // decision tree. The LLM builds the tree directly from the SOP when
+  // configured; the graph compiler is the fallback.
+  const knowledgeGraph = buildKnowledgeGraph(sections, extraction.rules);
   const engineTree =
     (await buildRuleEngineTree(projectName, sections)) ??
-    buildDecisionTree(projectName, extraction.rules);
+    compileGraphToTree(projectName, knowledgeGraph);
 
   // Completeness / structural validation.
   const issues = [] as { severity: string; code: string; message: string }[];
@@ -190,6 +195,7 @@ export async function regenerateProjectRules(projectId: string): Promise<{
       name: "Extracted rule set",
       version: "1.0.0",
       metadataConditions: JSON.stringify(extraction.metadata_conditions),
+      knowledgeGraph: JSON.stringify(knowledgeGraph),
       engineTree: JSON.stringify(engineTree),
       rules: {
         create: extraction.rules.map((r) => ({

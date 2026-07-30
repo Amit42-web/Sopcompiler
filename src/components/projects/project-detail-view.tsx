@@ -31,6 +31,7 @@ import {
 import { SopActions } from "@/components/sop/sop-actions";
 import { StructuredRules } from "@/components/rules/structured-rules";
 import { RuleJson } from "@/components/rules/rule-json";
+import { KnowledgeGraphView } from "@/components/rules/knowledge-graph-view";
 import { api } from "@/lib/api";
 import type { ProjectDetails } from "@/lib/types";
 import { relativeTime } from "@/lib/format";
@@ -138,6 +139,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             <TabsTrigger value="kb">
               Knowledge Base ({data.knowledge_base.length})
             </TabsTrigger>
+            <TabsTrigger value="graph">Graph</TabsTrigger>
             <TabsTrigger value="rules">
               Rules ({data.structured_rules.length})
             </TabsTrigger>
@@ -306,6 +308,11 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Knowledge graph */}
+        <TabsContent value="graph">
+          <KnowledgeGraphView graph={data.knowledge_graph} />
         </TabsContent>
 
         {/* Rules */}

@@ -90,13 +90,18 @@ reusable rules bound to each triggering scenario. When `ANTHROPIC_API_KEY` is
 set, `llm.extractStructured` performs the full-fidelity extraction with the
 same output shape; the heuristic extractor is the fallback.
 
-`rule-engine.ts` then compiles the extracted rules into an executable **Rule
-Engine decision tree**: typed blocks (Attribute → Condition → Validate Info /
-Prompt → Response) with YES/NO/NA routing, per the Rule Engine knowledge base.
-Metadata → Attribute/Condition; mandatory agent communications → Validate Info;
-subjective transcript checks → Prompt; every branch ends in a Response. When a
-key is set, `llm.buildRuleEngineTree` builds the tree directly from the SOP with
-the knowledge base as its system prompt. The tree is the primary export (JSON
+The pipeline then follows **SOP → Knowledge Graph → Rule Engine**:
+`knowledge-graph.ts` turns the extracted rules into a typed graph identifying
+scenarios, metadata, decisions, customer communication, system actions, AI
+evaluations and responses; `rule-engine.ts` compiles that graph into an
+executable **Rule Engine decision tree** by applying explicit architectural
+rules (every scenario starts with an applicability check; every metadata check
+is Attribute→Condition; Prompts only where metadata is insufficient; one
+scenario = one independent branch; no cross-scenario evaluation; every branch
+ends in a Response; no duplicate Validate Info; reuse shared Responses). Blocks
+are Attribute → Condition → Validate Info / Prompt → Response with YES/NO/NA
+routing. When a key is set, `llm.buildRuleEngineTree` builds the tree directly
+from the SOP with the knowledge base as its system prompt. The tree is the primary export (JSON
 tab / Download Rule JSON). Persistence goes through Prisma
 (`src/server/ingest.ts` writes, `src/server/queries.ts` reads).
 

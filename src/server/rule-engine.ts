@@ -1,50 +1,44 @@
 /**
- * Rule Engine decision-tree builder.
+ * Knowledge Graph → Rule Engine decision tree.
  *
- * Converts the extracted structured rules into an executable decision tree of
- * typed blocks (Attribute → Condition → Validate Info / Prompt → Response) with
- * YES/NO/NA routing, per the Rule Engine knowledge base. Metadata drives
- * Attribute/Condition blocks; mandatory agent communications become Validate
- * Info blocks; subjective, transcript-only checks become Prompt blocks; every
- * branch terminates in a Response block.
+ * Compiles the knowledge graph into an executable decision tree of typed blocks
+ * (Attribute → Condition → Validate Info / Prompt → Response) by applying
+ * explicit architectural rules rather than "just generating JSON":
  *
- * This is a deterministic approximation. When `ANTHROPIC_API_KEY` is set,
- * `llm.buildRuleEngineTree` produces the tree directly from the SOP using the
- * knowledge base as its system prompt.
+ *   1. Every scenario starts with an applicability check.
+ *   2. Every metadata check uses an Attribute followed by a Condition.
+ *   3. Never use a Prompt where metadata is sufficient (prompts come only from
+ *      AI-evaluation nodes; metadata always becomes Attribute+Condition).
+ *   4. Never evaluate unrelated scenarios (applicability NO skips to the next
+ *      scenario; a scenario's branch contains only its own nodes).
+ *   5. One scenario = one independent branch.
+ *   6. Every branch ends with a Response.
+ *   7. Avoid duplicated Validate Info blocks (deduped within a branch).
+ *   8. Reuse common logic where possible (shared Response blocks).
+ *
+ * When `ANTHROPIC_API_KEY` is set, `llm.buildRuleEngineTree` builds the tree
+ * directly from the SOP with the knowledge base as its system prompt; this
+ * deterministic compiler is the fallback.
  */
 
 import type {
-  ConditionNode,
+  GraphNode,
+  KnowledgeGraph,
   RuleEngineBlock,
   RuleEngineTree,
-  RuleOperator,
+  SopSection,
   StructuredRule,
 } from "@/lib/types";
 import { newId } from "@/server/id";
+import { buildKnowledgeGraph } from "@/server/knowledge-graph";
 
-// Transcript-quality checks (AI judgement) vs. factual communication checks.
-const SUBJECTIVE =
-  /educat|correct|proper|complete|all mandatory|verify.*(concern|issue)|quality|understand|reassur|empath|appropriat|politely|professional/i;
-
-interface Leaf {
-  raw: string;
-  fact: string;
-  operator: RuleOperator;
-  value: string | number | boolean;
+function norm(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function flattenLeaves(node: ConditionNode | null): Leaf[] {
-  if (!node) return [];
-  if (node.type === "leaf")
-    return [
-      { raw: node.raw, fact: node.fact, operator: node.operator, value: node.value },
-    ];
-  return node.children.flatMap(flattenLeaves);
-}
-
-export function buildDecisionTree(
+export function compileGraphToTree(
   name: string,
-  rules: StructuredRule[]
+  graph: KnowledgeGraph
 ): RuleEngineTree {
   const blocks: RuleEngineBlock[] = [];
   const add = (b: Omit<RuleEngineBlock, "id">): string => {
@@ -53,7 +47,7 @@ export function buildDecisionTree(
     return id;
   };
 
-  // Terminal responses (shared).
+  // Rule 8: shared terminal responses.
   const followed = add({
     type: "response",
     label: "SOP Followed",
@@ -66,64 +60,133 @@ export function buildDecisionTree(
   });
   const na = add({ type: "response", label: "Not Applicable", response: "NA" });
 
-  // Only metadata/business conditions and agent obligations belong in a
-  // compliance tree; backend/system actions are excluded per the knowledge base.
-  const relevant = rules
-    .filter((r) => r.action_kind === "agent_action" || r.conditions)
-    .sort((a, b) => a.order - b.order);
+  const scenarios = graph.nodes.filter((n) => n.kind === "scenario");
+  const owned = (scenario: string, kind: GraphNode["kind"]) =>
+    graph.nodes.filter((n) => n.scenario === scenario && n.kind === kind);
 
-  // Build the spine in reverse so each segment routes into the next.
-  let next = followed;
+  // Build scenarios back-to-front so each applicability NO routes to the next
+  // scenario's entry (Rule 4 & 5: independent branches, no cross-evaluation).
+  let nextScenarioEntry = na;
 
-  for (let i = relevant.length - 1; i >= 0; i--) {
-    const r = relevant[i];
-    let entry = next;
+  for (let i = scenarios.length - 1; i >= 0; i--) {
+    const sc = scenarios[i];
+    const scenario = sc.scenario ?? sc.label;
 
-    // Obligation block: Validate Info (factual) or Prompt (subjective).
-    if (r.action_kind === "agent_action" && r.validation_prompt) {
-      const type = SUBJECTIVE.test(r.validation_prompt)
-        ? ("prompt" as const)
-        : ("validate_info" as const);
-      entry = add({
-        type,
-        label: r.name,
-        prompt: r.validation_prompt,
-        yes: entry,
+    const metas = owned(scenario, "metadata");
+    const comms = owned(scenario, "customer_communication");
+    const ais = owned(scenario, "ai_evaluation");
+
+    // A scenario with nothing to evaluate is skipped (no empty branch).
+    if (metas.length === 0 && comms.length === 0 && ais.length === 0) continue;
+
+    // Build the branch tail-first, ending at "SOP Followed" (Rule 6).
+    let step = followed;
+    const seen = new Set<string>(); // Rule 7: no duplicate Validate Info/Prompt.
+
+    // AI evaluations → Prompt blocks (Rule 3: only subjective checks).
+    for (let k = ais.length - 1; k >= 0; k--) {
+      const n = ais[k];
+      const key = `p:${norm(n.prompt ?? n.label)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      step = add({
+        type: "prompt",
+        label: n.label,
+        prompt: n.prompt,
+        yes: step,
         no: notFollowed,
         na,
       });
     }
 
-    // Condition blocks (Attribute read + Condition evaluate) gate the obligation.
-    const leaves = flattenLeaves(r.conditions);
-    for (let j = leaves.length - 1; j >= 0; j--) {
-      const leaf = leaves[j];
-      const condId = add({
-        type: "condition",
-        label: `${leaf.fact} ${leaf.operator.replace(/_/g, " ")} ${leaf.value}`,
-        attribute: leaf.fact,
-        operator: leaf.operator,
-        value: leaf.value,
-        yes: entry, // condition met → continue
-        no: na, // not applicable → NA (never evaluate an SOP that doesn't apply)
+    // Customer communication → Validate Info blocks.
+    for (let k = comms.length - 1; k >= 0; k--) {
+      const n = comms[k];
+      const key = `v:${norm(n.prompt ?? n.label)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      step = add({
+        type: "validate_info",
+        label: n.label,
+        prompt: n.prompt,
+        yes: step,
+        no: notFollowed,
         na,
       });
-      const attrId = add({
-        type: "attribute",
-        label: `Read ${leaf.fact.replace(/_/g, " ")}`,
-        attribute: leaf.fact,
-        next: condId,
-      });
-      entry = attrId;
     }
 
-    next = entry;
+    // Non-applicability metadata checks → Attribute + Condition (Rule 2).
+    for (let k = metas.length - 1; k >= 1; k--) {
+      const leaf = metas[k];
+      const cond = add({
+        type: "condition",
+        label: leaf.label,
+        attribute: leaf.attribute,
+        operator: leaf.operator,
+        value: leaf.value,
+        yes: step,
+        no: na,
+        na,
+      });
+      step = add({
+        type: "attribute",
+        label: `Read ${(leaf.attribute ?? "").replace(/_/g, " ")}`,
+        attribute: leaf.attribute,
+        next: cond,
+      });
+    }
+
+    // Rule 1: every scenario starts with an applicability check. Use the first
+    // metadata condition as the applicability gate; otherwise a generic one.
+    let entry: string;
+    if (metas.length > 0) {
+      const leaf = metas[0];
+      const cond = add({
+        type: "condition",
+        label: `Applicable? ${leaf.label}`,
+        attribute: leaf.attribute,
+        operator: leaf.operator,
+        value: leaf.value,
+        yes: step,
+        no: nextScenarioEntry, // Rule 4: skip to next scenario, don't fail
+        na: nextScenarioEntry,
+      });
+      entry = add({
+        type: "attribute",
+        label: `Read ${(leaf.attribute ?? "").replace(/_/g, " ")}`,
+        attribute: leaf.attribute,
+        next: cond,
+      });
+    } else {
+      entry = add({
+        type: "condition",
+        label: `Does "${sc.label}" apply?`,
+        attribute: "scenario_applies",
+        operator: "equals",
+        value: true,
+        yes: step,
+        no: nextScenarioEntry,
+        na: nextScenarioEntry,
+      });
+    }
+
+    nextScenarioEntry = entry;
   }
 
   return {
     name: name || "Rule Engine",
     version: "1.0.0",
-    root: next === followed ? null : next,
+    root: nextScenarioEntry === na ? null : nextScenarioEntry,
     blocks,
   };
+}
+
+/** Convenience: SOP sections + rules → knowledge graph → decision tree. */
+export function buildDecisionTree(
+  name: string,
+  sections: SopSection[],
+  rules: StructuredRule[]
+): { graph: KnowledgeGraph; tree: RuleEngineTree } {
+  const graph = buildKnowledgeGraph(sections, rules);
+  return { graph, tree: compileGraphToTree(name, graph) };
 }
