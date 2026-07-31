@@ -133,6 +133,7 @@ model RuleSet {
   metadataConditions String   @default("[]") // JSON MetadataCondition[]
   knowledgeGraph     String   @default("null") // JSON KnowledgeGraph
   engineTree         String   @default("null") // JSON RuleEngineTree
+  buildSpec          String   @default("null") // JSON RuleEngineBuildSpec
   createdAt          DateTime @default(now())
 
   project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)

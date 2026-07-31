@@ -1,10 +1,10 @@
 import { prisma } from "@/server/db";
 import { logActivity } from "@/server/ingest";
-import { getLatestStructured } from "@/server/queries";
+import { getLatestBuildSpec } from "@/server/queries";
 
 export const runtime = "nodejs";
 
-/** GET /api/files/:id/export — download the project's structured Rule Engine JSON. */
+/** GET /api/files/:id/export — download the project's rule_engine_build_spec JSON. */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -18,29 +18,7 @@ export async function GET(
     });
   }
 
-  const { rules, metadata_conditions, engine_tree } = await getLatestStructured(
-    file.projectId
-  );
-
-  // Primary output is the executable Rule Engine decision tree. The structured
-  // rules and metadata conditions are included for reference.
-  const payload = {
-    ...(engine_tree ?? { name: "Rule Engine", version: "1.0.0", root: null, blocks: [] }),
-    metadata_conditions,
-    extracted_rules: rules.map((r) => ({
-      id: r.id,
-      name: r.name,
-      category: r.category,
-      action_kind: r.action_kind,
-      obligation: r.obligation,
-      branch: r.branch,
-      preconditions: r.preconditions,
-      conditions: r.conditions,
-      validation_prompt: r.validation_prompt,
-      applies_to: r.applies_to,
-      source_text: r.raw,
-    })),
-  };
+  const buildSpec = await getLatestBuildSpec(file.projectId);
 
   await logActivity(
     "json_exported",
@@ -50,10 +28,13 @@ export async function GET(
   );
 
   const name = file.filename.replace(/\.[^.]+$/, "") || "ruleset";
-  return new Response(JSON.stringify(payload, null, 2), {
-    headers: {
-      "content-type": "application/json",
-      "content-disposition": `attachment; filename="${name}.rules.json"`,
-    },
-  });
+  return new Response(
+    JSON.stringify({ rule_engine_build_spec: buildSpec }, null, 2),
+    {
+      headers: {
+        "content-type": "application/json",
+        "content-disposition": `attachment; filename="${name}.rules.json"`,
+      },
+    }
+  );
 }

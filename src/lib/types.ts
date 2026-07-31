@@ -240,6 +240,86 @@ export interface KnowledgeGraph {
   edges: GraphEdge[];
 }
 
+// --- Rule Engine build spec (layered gear/branch format) -------------------
+
+export interface MatchAgainst {
+  attribute_category?: string;
+  key?: string;
+  value?: string | number | boolean | (string | number)[];
+}
+
+export interface GearCondition {
+  condition: "Attribute";
+  action?: "Validate information";
+  block_name?: string;
+  attribute_category: string;
+  key: string;
+  operator?: string;
+  match_against?: MatchAgainst;
+}
+
+export interface BuildGear {
+  type: "Single block" | "Group block";
+  // Attribute single block
+  condition?: "Attribute" | "Moment";
+  attribute_category?: string;
+  key?: string;
+  action?: "Validate information";
+  operator?: string;
+  match_against?: MatchAgainst;
+  // Group block
+  conditions?: GearCondition[];
+  // Moment single block
+  mode?: "Prompt based";
+  llm_prompt?: string;
+}
+
+export interface BuildBranch {
+  name: string;
+  gear?: BuildGear | null;
+  on_yes?: string;
+  on_else?: string;
+  connect_to?: string;
+}
+
+export interface BuildLayer0 {
+  created_by: string;
+  block_name: string;
+  branches: BuildBranch[];
+}
+
+export interface BuildLayer1 {
+  id: string;
+  created_by: string;
+  parent_branch: string;
+  block_name: string;
+  branches: BuildBranch[];
+}
+
+export interface BuildLayerBlock {
+  id: string;
+  created_by: string;
+  parent_branch: string;
+  block_name: string;
+  gear: BuildGear;
+  branches: BuildBranch[];
+}
+
+export interface BuildResponse {
+  created_by: string;
+  YES: string;
+  NO: string;
+}
+
+export interface RuleEngineBuildSpec {
+  rules: string[];
+  layer_0: BuildLayer0;
+  layer_1: BuildLayer1;
+  layer_2: BuildLayerBlock[];
+  layer_3: BuildLayerBlock[];
+  response: BuildResponse;
+}
+
 export interface RuleSet {
   id: string;
   project_id: string;
@@ -377,6 +457,7 @@ export interface ProjectDetails extends ProjectSummary {
   metadata_conditions: MetadataCondition[];
   knowledge_graph: KnowledgeGraph | null;
   engine_tree: RuleEngineTree | null;
+  build_spec: RuleEngineBuildSpec | null;
   validation: ValidationReport | null;
   version_history: ProcessingRunItem[];
 }

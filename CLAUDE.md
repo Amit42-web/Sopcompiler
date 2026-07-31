@@ -101,7 +101,15 @@ scenario = one independent branch; no cross-scenario evaluation; every branch
 ends in a Response; no duplicate Validate Info; reuse shared Responses). Blocks
 are Attribute → Condition → Validate Info / Prompt → Response with YES/NO/NA
 routing. When a key is set, `llm.buildRuleEngineTree` builds the tree directly
-from the SOP with the knowledge base as its system prompt. The tree is the primary export (JSON
+from the SOP with the knowledge base as its system prompt.
+
+The **primary export** is the layered `rule_engine_build_spec` JSON
+(`build-spec.ts`): Layer 0 selects the SOP via a Tags attribute; Layer 1 names
+scenarios, each branch carrying a Single/Group-block gear of `call_metadata`
+conditions; Layers 2/3 are Moment "Prompt based" blocks (intent → info-shared);
+a single Response block holds YES/NO and every Else Path connects to
+`response.NO`. `llm.buildEngineSpec` produces it directly from the SOP when a
+key is set. The JSON tab / Download Rule JSON emit `{ rule_engine_build_spec }`. The tree is the primary export (JSON
 tab / Download Rule JSON). Persistence goes through Prisma
 (`src/server/ingest.ts` writes, `src/server/queries.ts` reads).
 

@@ -24,6 +24,7 @@ import type {
   RuleBinding,
   RuleCondition,
   RuleAction,
+  RuleEngineBuildSpec,
   RuleEngineTree,
   StructuredRule,
   ValidationReport,
@@ -347,6 +348,9 @@ export async function getProjectDetails(
   const knowledgeGraph = ruleSet
     ? parseJson<KnowledgeGraph | null>(ruleSet.knowledgeGraph, null)
     : null;
+  const buildSpec = ruleSet
+    ? parseJson<RuleEngineBuildSpec | null>(ruleSet.buildSpec, null)
+    : null;
   const validationRow = ruleSet?.validationReports[0];
   const validation: ValidationReport | null = validationRow
     ? {
@@ -423,6 +427,7 @@ export async function getProjectDetails(
     metadata_conditions: metadataConditions,
     knowledge_graph: knowledgeGraph,
     engine_tree: engineTree,
+    build_spec: buildSpec,
     validation,
     version_history: project.runs.map((r) => ({
       id: r.id,
@@ -448,24 +453,16 @@ export async function getLatestRules(projectId: string): Promise<Rule[]> {
   return ruleSet ? ruleSet.rules.map(mapRule) : [];
 }
 
-/** The latest structured rule set + metadata conditions + engine tree. */
-export async function getLatestStructured(projectId: string): Promise<{
-  rules: StructuredRule[];
-  metadata_conditions: MetadataCondition[];
-  engine_tree: RuleEngineTree | null;
-}> {
+/** The latest build spec for a project, for export. */
+export async function getLatestBuildSpec(
+  projectId: string
+): Promise<RuleEngineBuildSpec | null> {
   const ruleSet = await prisma.ruleSet.findFirst({
     where: { projectId },
     orderBy: { createdAt: "desc" },
-    include: { rules: { orderBy: { orderIndex: "asc" } } },
+    select: { buildSpec: true },
   });
-  return {
-    rules: ruleSet ? ruleSet.rules.map(mapStructuredRule) : [],
-    metadata_conditions: ruleSet
-      ? parseJson<MetadataCondition[]>(ruleSet.metadataConditions, [])
-      : [],
-    engine_tree: ruleSet
-      ? parseJson<RuleEngineTree | null>(ruleSet.engineTree, null)
-      : null,
-  };
+  return ruleSet
+    ? parseJson<RuleEngineBuildSpec | null>(ruleSet.buildSpec, null)
+    : null;
 }

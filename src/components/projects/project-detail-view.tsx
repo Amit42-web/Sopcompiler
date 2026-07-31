@@ -325,12 +325,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
 
         {/* Rule Engine JSON */}
         <TabsContent value="json">
-          <RuleJson
-            projectName={data.name}
-            engineTree={data.engine_tree}
-            rules={data.structured_rules}
-            metadataConditions={data.metadata_conditions}
-          />
+          <RuleJson projectName={data.name} buildSpec={data.build_spec} />
         </TabsContent>
 
         {/* Validation */}

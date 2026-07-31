@@ -9,6 +9,7 @@
  */
 
 import type {
+  RuleEngineBuildSpec,
   RuleEngineTree,
   Scenario,
   SopSection,
@@ -17,6 +18,56 @@ import type {
 
 export function isAvailable(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
+const BUILD_SPEC_KB = `You convert an SOP into a Rule Engine "rule_engine_build_spec" JSON — a layered decision flow. Rules:
+- Every conditional block has Else Path always ON.
+- A conditional block only NAMES its branches. The gear config lives on each BRANCH, not on the block.
+- Gear -> Single block = one condition. Gear -> Group block = two or more conditions joined by AND/OR.
+- Layer 0: gear -> Single block -> Attribute -> category 'Tags' -> key (the SOP). No Validate information step.
+- Deeper layers: gear -> Single/Group block -> Attribute -> Validate information -> category -> key -> operator -> match_against.
+- Moment condition = Single block, condition 'Moment', mode 'Prompt based', with an llm_prompt.
+- Multiple moments are never grouped; each moment gets its own layer.
+- Response block is created ONCE (YES and NO); all later branches connect into it.
+- Every Else Path connects to response.NO.
+Layers: layer_0 (block "SOPs": branches select SOP via Tags), layer_1 (block "<SOP> scenarios": one branch per scenario, gear = Group/Single block of call_metadata conditions, on_yes -> a layer_2 id, on_else -> response.NO), layer_2 (Moment prompt blocks: intent checks; Yes -> layer_3 id or response.YES, Else Path -> response.NO), layer_3 (Moment prompt blocks: "Agent shared required info?"; Yes -> response.YES, Else Path -> response.NO). Every layer_1 block ends with an "Else Path" branch -> response.NO.
+Respond with ONLY JSON: {"rules":[...],"layer_0":{...},"layer_1":{...},"layer_2":[...],"layer_3":[...],"response":{"created_by":"...","YES":"YES","NO":"NO"}} matching those field names exactly (created_by, block_name, parent_branch, branches, gear, on_yes, on_else, connect_to, attribute_category, key, operator, match_against, llm_prompt, mode). Reference other layers as "layer_1.<id>", "layer_2.<id>", "layer_3.<id>", "response.YES", "response.NO".`;
+
+/** Build the layered Rule Engine build spec directly from the SOP via the LLM. */
+export async function buildEngineSpec(
+  name: string,
+  sections: SopSection[]
+): Promise<RuleEngineBuildSpec | null> {
+  if (!isAvailable() || sections.length === 0) return null;
+  try {
+    const model = process.env.LLM_MODEL || "claude-sonnet-5";
+    const sop = sections.map((s) => `## ${s.title}\n${s.text}`).join("\n\n");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY as string,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 8192,
+        system: BUILD_SPEC_KB,
+        messages: [
+          { role: "user", content: `SOP name: ${name}\n\nSOP:\n${sop}` },
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    const text = payload?.content?.[0]?.text ?? "";
+    const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+    const spec = JSON.parse(json) as RuleEngineBuildSpec;
+    if (!spec || !spec.layer_0 || !spec.layer_1 || !spec.response) return null;
+    return spec;
+  } catch {
+    return null;
+  }
 }
 
 const RULE_ENGINE_KB = `You are an expert Rule Engine Designer converting SOPs into an executable decision tree (NOT a summary).

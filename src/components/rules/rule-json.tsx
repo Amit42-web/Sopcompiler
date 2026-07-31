@@ -5,66 +5,20 @@ import { Copy, Check, Download, Braces } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type {
-  MetadataCondition,
-  RuleEngineTree,
-  StructuredRule,
-} from "@/lib/types";
-
-/** Build the Rule Engine JSON payload: the decision tree plus reference data. */
-export function buildRuleEngineJson(
-  name: string,
-  engineTree: RuleEngineTree | null,
-  rules: StructuredRule[],
-  metadataConditions: MetadataCondition[]
-) {
-  const tree = engineTree ?? {
-    name: name || "Rule Engine",
-    version: "1.0.0",
-    root: null,
-    blocks: [],
-  };
-  return {
-    ...tree,
-    generated_at: new Date().toISOString(),
-    metadata_conditions: metadataConditions,
-    extracted_rules: rules.map((r) => ({
-      id: r.id,
-      name: r.name,
-      category: r.category,
-      action_kind: r.action_kind,
-      obligation: r.obligation,
-      branch: r.branch,
-      preconditions: r.preconditions,
-      conditions: r.conditions,
-      validation_prompt: r.validation_prompt,
-      applies_to: r.applies_to,
-      source_text: r.raw,
-    })),
-  };
-}
+import type { RuleEngineBuildSpec } from "@/lib/types";
 
 export function RuleJson({
   projectName,
-  engineTree,
-  rules,
-  metadataConditions,
+  buildSpec,
 }: {
   projectName: string;
-  engineTree: RuleEngineTree | null;
-  rules: StructuredRule[];
-  metadataConditions: MetadataCondition[];
+  buildSpec: RuleEngineBuildSpec | null;
 }) {
   const [copied, setCopied] = useState(false);
 
   const json = useMemo(
-    () =>
-      JSON.stringify(
-        buildRuleEngineJson(projectName, engineTree, rules, metadataConditions),
-        null,
-        2
-      ),
-    [projectName, engineTree, rules, metadataConditions]
+    () => JSON.stringify({ rule_engine_build_spec: buildSpec }, null, 2),
+    [buildSpec]
   );
 
   async function copy() {
@@ -87,7 +41,7 @@ export function RuleJson({
     URL.revokeObjectURL(url);
   }
 
-  if (rules.length === 0 && !(engineTree && engineTree.blocks.length > 0)) {
+  if (!buildSpec) {
     return (
       <p className="text-sm text-muted-foreground">
         No rules extracted yet — upload an SOP to generate Rule Engine JSON.

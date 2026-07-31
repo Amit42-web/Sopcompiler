@@ -13,9 +13,14 @@ import { prisma } from "@/server/db";
 import { parseDocument } from "@/server/parsing";
 import { runPipeline } from "@/server/pipeline";
 import { extractRules } from "@/server/extraction";
-import { extractStructured, buildRuleEngineTree } from "@/server/llm";
+import {
+  extractStructured,
+  buildRuleEngineTree,
+  buildEngineSpec,
+} from "@/server/llm";
 import { buildKnowledgeGraph } from "@/server/knowledge-graph";
 import { compileGraphToTree } from "@/server/rule-engine";
+import { buildBuildSpec } from "@/server/build-spec";
 import type {
   ActivityType,
   ConditionNode,
@@ -168,6 +173,11 @@ export async function regenerateProjectRules(projectId: string): Promise<{
     (await buildRuleEngineTree(projectName, sections)) ??
     compileGraphToTree(projectName, knowledgeGraph);
 
+  // Primary output: the layered rule_engine_build_spec JSON.
+  const buildSpec =
+    (await buildEngineSpec(projectName, sections)) ??
+    buildBuildSpec(projectName, sections, extraction.rules);
+
   // Completeness / structural validation.
   const issues = [] as { severity: string; code: string; message: string }[];
   if (!extraction.complete) {
@@ -197,6 +207,7 @@ export async function regenerateProjectRules(projectId: string): Promise<{
       metadataConditions: JSON.stringify(extraction.metadata_conditions),
       knowledgeGraph: JSON.stringify(knowledgeGraph),
       engineTree: JSON.stringify(engineTree),
+      buildSpec: JSON.stringify(buildSpec),
       rules: {
         create: extraction.rules.map((r) => ({
           name: r.name,
