@@ -77,54 +77,72 @@ function slugifyFact(text: string): string {
   return words.slice(0, 5).join("_") || "condition";
 }
 
+function cleanValue(s: string): string {
+  return s
+    .trim()
+    .replace(/^["'`]|["'`.,;:]+$/g, "")
+    .replace(/\b(days?|hours?|minutes?|pm|am)\b/gi, "")
+    .trim();
+}
+
 function parseLeaf(raw: string): ConditionNode {
   const text = raw.trim();
+
+  // Find the comparator and split the phrase into attribute (left) and value
+  // (right), so keys become clean facts and values are separated.
   let operator: RuleOperator = "equals";
+  let matchIndex = -1;
+  let matchLen = 0;
   for (const [re, op] of COMPARATORS) {
-    if (re.test(text)) {
+    const m = re.exec(text);
+    if (m) {
       operator = op;
+      matchIndex = m.index;
+      matchLen = m[0].length;
       break;
     }
   }
-  const num = NUMBER.exec(text);
+  const left = matchIndex >= 0 ? text.slice(0, matchIndex) : text;
+  const right = matchIndex >= 0 ? text.slice(matchIndex + matchLen) : "";
+
+  const num = NUMBER.exec(right) ?? NUMBER.exec(text);
   let value: string | number | boolean;
-  let factSource = text;
+  let factSource: string;
+
   if (num && (operator === "greater_than" || operator === "less_than")) {
-    const parsed = Number(num[1]);
-    value = parsed;
-    factSource = text.replace(NUMBER, "");
+    value = Number(num[1]);
+    // Keep any noun from the right side in the key (e.g. "refunds").
+    factSource = `${left} ${right}`.replace(NUMBER, "");
   } else {
-    const tokens = text.match(/[a-zA-Z]+/g) ?? [];
-    value = tokens.length ? tokens[tokens.length - 1] : true;
+    const rightClean = cleanValue(right);
+    if (rightClean) {
+      value = /^\d+$/.test(rightClean) ? Number(rightClean) : rightClean;
+    } else {
+      const tokens = text.match(/[a-zA-Z]+/g) ?? [];
+      value = tokens.length ? tokens[tokens.length - 1] : true;
+    }
+    factSource = left || text;
   }
-  return { type: "leaf", raw: text, fact: slugifyFact(factSource), operator, value };
+
+  return {
+    type: "leaf",
+    raw: text,
+    fact: slugifyFact(factSource),
+    operator,
+    value,
+  };
 }
 
-/** Split a string on a connector at the top level (respecting parentheses). */
-function splitTopLevel(text: string, connector: RegExp): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let buf = "";
-  let i = 0;
-  while (i < text.length) {
-    const ch = text[i];
-    if (ch === "(") depth++;
-    if (ch === ")") depth = Math.max(0, depth - 1);
-    if (depth === 0) {
-      const rest = text.slice(i);
-      const m = rest.match(connector);
-      if (m && m.index === 0) {
-        parts.push(buf);
-        buf = "";
-        i += m[0].length;
-        continue;
-      }
-    }
-    buf += ch;
-    i++;
-  }
-  parts.push(buf);
-  return parts.map((p) => p.trim()).filter(Boolean);
+// Connectors require surrounding whitespace so they never match inside a word
+// (e.g. the "or" in "Out For Delivery" or the "and" in "brand").
+const OR_SPLIT = /\s+or\s+/i;
+const AND_SPLIT = /\s+and\s+|\s*,\s*/i;
+
+function splitTop(text: string, re: RegExp): string[] {
+  return text
+    .split(re)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /** Build a nested condition tree, keeping exact wording. AND binds tighter. */
@@ -132,10 +150,9 @@ function parseConditions(text: string): ConditionNode | null {
   const clean = text.trim().replace(/^\(|\)$/g, "").trim();
   if (!clean) return null;
 
-  const orParts = splitTopLevel(clean, /^\s*\bor\b\s*/i);
+  const orParts = splitTop(clean, OR_SPLIT);
   const orChildren = orParts.map((orPart) => {
-    const andParts = splitTopLevel(orPart, /^\s*(?:\band\b|,)\s*/i);
-    const andChildren = andParts.map(parseLeaf);
+    const andChildren = splitTop(orPart, AND_SPLIT).map(parseLeaf);
     return andChildren.length === 1
       ? andChildren[0]
       : ({ type: "group", op: "all", children: andChildren } as ConditionNode);

@@ -151,7 +151,23 @@ export async function regenerateProjectRules(projectId: string): Promise<{
     where: { id: projectId },
     select: { name: true },
   });
-  const projectName = project?.name ?? "Rule Engine";
+
+  // Derive a proper SOP tag from the document's own title (extracted metadata),
+  // falling back to a title-like first section, then the project name.
+  const firstFile = await prisma.sopFile.findFirst({
+    where: { projectId },
+    orderBy: { createdAt: "asc" },
+    include: { metadata: { select: { title: true } } },
+  });
+  const titleSection = sections.find(
+    (s) => s.title !== "Document" && !/^\d/.test(s.title)
+  );
+  const sopTag =
+    firstFile?.metadata?.title?.trim() ||
+    titleSection?.title ||
+    project?.name ||
+    "SOP";
+  const projectName = sopTag;
 
   const extraction = extractRules(sections);
 
