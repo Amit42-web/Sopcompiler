@@ -134,7 +134,7 @@ function parseLeaf(raw: string): ConditionNode {
 }
 
 // Connectors require surrounding whitespace so they never match inside a word
-// (e.g. the "or" in "Out For Delivery" or the "and" in "brand").
+// (e.g. the "or" in a word like "corner", or the "and" in "brand").
 const OR_SPLIT = /\s+or\s+/i;
 const AND_SPLIT = /\s+and\s+|\s*,\s*/i;
 
