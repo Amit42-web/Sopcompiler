@@ -80,15 +80,16 @@ function metadataGear(metas: GraphNode[]): BuildGear | null {
 }
 
 function intentPrompt(node: GraphNode): string {
-  const base = node.prompt ?? `Evaluate: ${node.label}`;
-  return `${base} Output only YES or NO.`;
+  const base = (node.prompt ?? node.label).replace(/\s+/g, " ").trim();
+  return `${base} Output YES or NO.`;
 }
 
 function infoPrompt(scenario: string, comms: GraphNode[]): string {
   const required =
-    comms.map((c) => c.prompt ?? c.label).join("; ") ||
-    "the agent shared the required information";
-  return `Scenario: '${scenario}'. Required: ${required}. Latitude: info need not be verbatim; any nearby/relevant info counts as MET. Output YES if communicated, else NO, with a one-line reason.`;
+    comms
+      .map((c) => (c.prompt ?? c.label).replace(/^did the agent\s*/i, "").replace(/\?$/, ""))
+      .join("; ") || "shared the required information";
+  return `'${scenario}': did the agent ${required}? YES or NO with a one-line reason.`;
 }
 
 function momentBlock(
@@ -114,6 +115,33 @@ function momentBlock(
       { name: "Else Path", connect_to: "response.NO" },
     ],
   };
+}
+
+/**
+ * Verify the spec is safe to import into the rule engine: required layers
+ * present, and every branch reference (on_yes / on_else / connect_to) resolves
+ * to a real target. Used to reject a malformed LLM spec so the always-valid
+ * deterministic builder is used instead.
+ */
+export function validateBuildSpec(
+  spec: RuleEngineBuildSpec | null | undefined
+): boolean {
+  if (!spec || !spec.layer_0 || !spec.layer_1 || !spec.response) return false;
+
+  const targets = new Set<string>(["response.YES", "response.NO"]);
+  targets.add(`layer_1.${spec.layer_1.id}`);
+  for (const b of spec.layer_2 ?? []) targets.add(`layer_2.${b.id}`);
+  for (const b of spec.layer_3 ?? []) targets.add(`layer_3.${b.id}`);
+
+  const refs: (string | undefined)[] = [];
+  const collect = (branches?: BuildBranch[]) =>
+    branches?.forEach((br) => refs.push(br.on_yes, br.on_else, br.connect_to));
+  collect(spec.layer_0.branches);
+  collect(spec.layer_1.branches);
+  for (const b of spec.layer_2 ?? []) collect(b.branches);
+  for (const b of spec.layer_3 ?? []) collect(b.branches);
+
+  return refs.filter(Boolean).every((r) => targets.has(r as string));
 }
 
 export function buildBuildSpec(

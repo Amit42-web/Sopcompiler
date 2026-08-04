@@ -16,14 +16,18 @@ export function RuleJson({
 }) {
   const [copied, setCopied] = useState(false);
 
-  const json = useMemo(
-    () => JSON.stringify({ rule_engine_build_spec: buildSpec }, null, 2),
+  const payload = useMemo(
+    () => ({ rule_engine_build_spec: buildSpec }),
     [buildSpec]
   );
+  const json = useMemo(() => JSON.stringify(payload, null, 2), [payload]);
+  // Minified — this is what gets copied/downloaded to hand to the rule engine,
+  // so the file stays small even for large SOPs.
+  const jsonMin = useMemo(() => JSON.stringify(payload), [payload]);
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(json);
+      await navigator.clipboard.writeText(jsonMin);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -32,7 +36,7 @@ export function RuleJson({
   }
 
   function download() {
-    const blob = new Blob([json], { type: "application/json" });
+    const blob = new Blob([jsonMin], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

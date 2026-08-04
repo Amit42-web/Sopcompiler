@@ -20,7 +20,7 @@ import {
 } from "@/server/llm";
 import { buildKnowledgeGraph } from "@/server/knowledge-graph";
 import { compileGraphToTree } from "@/server/rule-engine";
-import { buildBuildSpec } from "@/server/build-spec";
+import { buildBuildSpec, validateBuildSpec } from "@/server/build-spec";
 import type {
   ActivityType,
   ConditionNode,
@@ -189,10 +189,14 @@ export async function regenerateProjectRules(projectId: string): Promise<{
     (await buildRuleEngineTree(projectName, sections)) ??
     compileGraphToTree(projectName, knowledgeGraph);
 
-  // Primary output: the layered rule_engine_build_spec JSON.
+  // Primary output: the layered rule_engine_build_spec JSON. Use the LLM spec
+  // only if it is reference-valid (importable); otherwise the deterministic
+  // builder, which is always valid.
+  const llmSpec = await buildEngineSpec(projectName, sections);
   const buildSpec =
-    (await buildEngineSpec(projectName, sections)) ??
-    buildBuildSpec(projectName, sections, extraction.rules);
+    llmSpec && validateBuildSpec(llmSpec)
+      ? llmSpec
+      : buildBuildSpec(projectName, sections, extraction.rules);
 
   // Completeness / structural validation.
   const issues = [] as { severity: string; code: string; message: string }[];

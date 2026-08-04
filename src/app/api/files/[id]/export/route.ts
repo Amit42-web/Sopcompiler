@@ -28,13 +28,11 @@ export async function GET(
   );
 
   const name = file.filename.replace(/\.[^.]+$/, "") || "ruleset";
-  return new Response(
-    JSON.stringify({ rule_engine_build_spec: buildSpec }, null, 2),
-    {
-      headers: {
-        "content-type": "application/json",
-        "content-disposition": `attachment; filename="${name}.rules.json"`,
-      },
-    }
-  );
+  // Minified so the file stays small for import into the rule engine.
+  return new Response(JSON.stringify({ rule_engine_build_spec: buildSpec }), {
+    headers: {
+      "content-type": "application/json",
+      "content-disposition": `attachment; filename="${name}.rules.json"`,
+    },
+  });
 }
